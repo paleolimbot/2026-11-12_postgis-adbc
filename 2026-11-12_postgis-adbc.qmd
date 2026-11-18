@@ -1,0 +1,46 @@
+---
+title: "PostGIS at the Boundaries"
+subtitle: "Breaking the ingress speed limit with Apache Arrow and ADBC"
+author: "Dewey Dunnington (@paleolimbot)"
+institute: "PostGIS Day"
+format:
+  revealjs:
+    embed-resources: true
+    title-slide-attributes:
+      data-background-image: bg/wb0.png
+      data-background-color: "#2556BB"
+---
+
+## {background-image="bg/wb4.png"}
+
+::: {style="text-align: center;"}
+
+![](logo/arrow-hex.png){width="20%"} ![](logo/nanoarrow-hex.png){width="20%"} ![](logo/geoarrow_logo.png){width="20%"} ![](logo/sf.gif){width="20%"}
+:::
+
+::: {style="text-align: center;"}
+
+![](logo/datafusion.svg){width="50%"}
+
+:::
+
+::: {style="text-align: center;"}
+
+![](logo/sedona_logo.png){width="70%"}
+
+:::
+
+## Also Me {background-image="bg/wb4.png"}
+
+![](bg/geology.jpg)
+
+## {background="#26374a"}
+
+::: {style="text-align: center;"}
+
+![](logo/spinning-earth.gif)
+
+[apache/sedona-db](https://github.com/apache/sedona-db) / [sedona.apache.org/sedonadb](https://sedona.apache.org/sedonadb)
+
+:::
+
