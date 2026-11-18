@@ -2,3 +2,4 @@
 .quarto/
 *_files/
 *.html
+.env
