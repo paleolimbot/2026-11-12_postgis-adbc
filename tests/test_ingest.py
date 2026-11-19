@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from ingest.__main__ import _format_elapsed
 from ingest.config import PostgresSettings, load_postgres_settings
+from ingest.duckdb import build_statements
 from ingest.ogr2ogr import build_command
 
 
@@ -37,6 +38,31 @@ def test_ogr_command_uses_copy_and_method_table(tmp_path: Path) -> None:
     assert "PG_USE_COPY" in command
     assert "sample_ogr2ogr" in command
     assert "secret" not in " ".join(command)
+
+
+def test_duckdb_statements_use_postgres_and_spatial_extensions(tmp_path: Path) -> None:
+    source = tmp_path / "source.parquet"
+    source.touch()
+    datasets = {"sample": {"source": source, "layer": "source", "table": "sample_ogr2ogr"}}
+    with patch("ingest.duckdb.DATASETS", datasets):
+        _, target_table, statements = build_statements("sample")
+
+    output = "\n".join(statements)
+    assert target_table == "sample_duckdb"
+    assert "INSTALL postgres" in output
+    assert "INSTALL spatial" in output
+    assert "CREATE TABLE postgis.sample_duckdb" in output
+    assert "read_parquet" in output
+
+
+def test_duckdb_dry_run_does_not_expose_password(tmp_path: Path) -> None:
+    source = tmp_path / "source.parquet"
+    source.touch()
+    datasets = {"sample": {"source": source, "layer": "source", "table": "sample_ogr2ogr"}}
+    with patch("ingest.duckdb.DATASETS", datasets):
+        _, _, statements = build_statements("sample")
+
+    assert "<redacted>" in "\n".join(statements)
 
 
 def test_elapsed_time_is_human_readable() -> None:

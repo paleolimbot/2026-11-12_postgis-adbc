@@ -34,10 +34,10 @@ change an existing database password. `docker compose down -v` deletes the data.
 
 ## Ingestion methods
 
-Each ingestion implementation lives in the dependency-free Python `ingest`
-package and uses the Postgres connection values in `.env`. The first baseline
-loads only `ns-water_elevation` with GDAL's `ogr2ogr`; it uses the PostgreSQL
-driver's `COPY` path and replaces the method-specific table
+Each ingestion implementation lives in the Python `ingest` package and uses the
+Postgres connection values in `.env`. The first baseline loads only
+`ns-water_elevation` with GDAL's `ogr2ogr`; it uses the PostgreSQL driver's
+`COPY` path and replaces the method-specific table
 `ns_water_elevation_ogr2ogr` on every run. This leaves room for later methods to
 load the same source into their own comparison tables.
 
@@ -57,6 +57,25 @@ uv run postgis-ingest ogr2ogr --dry-run
 The database password is supplied to GDAL through `PGPASSWORD` and is never
 included in the printed command. Use `--table another_name` to choose a
 different target table, or `--env-file path/to/.env` for a different connection.
+
+### DuckDB
+
+The `duckdb` option reads the GeoParquet source with DuckDB's `spatial`
+extension and writes the resulting geometry column to the attached PostGIS
+database through DuckDB's `postgres` extension. It replaces only
+`ns_water_elevation_duckdb` by default (or the table supplied with
+`--table`):
+
+```sh
+uv run postgis-ingest duckdb
+```
+
+On first use, DuckDB downloads its `postgres` and `spatial` extensions. Preview
+the password-free DuckDB SQL without opening a database connection:
+
+```sh
+uv run postgis-ingest duckdb --dry-run
+```
 
 Run the tests with:
 
