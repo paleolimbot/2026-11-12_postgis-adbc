@@ -19,6 +19,7 @@ class IngestionResult:
 
     statements: list[str]
     elapsed_seconds: float | None
+    target_table: str
 
 
 def build_statements(
@@ -76,7 +77,7 @@ def run(
 
     source, target_table, statements = build_statements(dataset, table, spatial_index)
     if dry_run:
-        return IngestionResult(statements=statements, elapsed_seconds=None)
+        return IngestionResult(statements=statements, target_table=target_table, elapsed_seconds=None)
 
     try:
         import adbc_driver_postgresql.dbapi
@@ -113,7 +114,7 @@ def run(
         if connection is not None:
             connection.close()
 
-    return IngestionResult(statements=statements, elapsed_seconds=time.perf_counter() - started_at)
+    return IngestionResult(statements=statements, target_table=target_table, elapsed_seconds=time.perf_counter() - started_at)
 
 
 def build_direct_statements(
@@ -154,7 +155,7 @@ def run_direct(
 
     source, target_table, statements = build_direct_statements(dataset, table, spatial_index)
     if dry_run:
-        return IngestionResult(statements=statements, elapsed_seconds=None)
+        return IngestionResult(statements=statements, target_table=target_table.lower(), elapsed_seconds=None)
 
     try:
         import adbc_driver_postgresql.dbapi
@@ -191,7 +192,7 @@ def run_direct(
         if connection is not None:
             connection.close()
 
-    return IngestionResult(statements=statements, elapsed_seconds=time.perf_counter() - started_at)
+    return IngestionResult(statements=statements, target_table=target_table.lower(), elapsed_seconds=time.perf_counter() - started_at)
 
 
 def _postgres_uri(settings: PostgresSettings) -> str:

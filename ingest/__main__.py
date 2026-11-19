@@ -17,6 +17,7 @@ from .matrix import format_results as format_matrix_results
 from .matrix import run as run_matrix
 from .ogr2ogr import DATASETS, IngestionError
 from .ogr2ogr import run as run_ogr2ogr
+from .postgis import drop_ingested_table, drop_table_statement
 from .server_settings import ServerSettingsError, format_settings
 from .server_settings import read as read_server_settings
 from .server_settings import update as update_server_settings
@@ -86,6 +87,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_adbc_arguments(adbc_direct)
 
+    for loader in (ogr, duckdb, duckdb_copy, geopandas, matrix, adbc_alter, adbc_direct):
+        loader.add_argument(
+            "--drop-table",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="drop the destination table after successful ingestion, outside timing (default: true)",
+        )
+
     server_settings = subcommands.add_parser(
         "settings",
         aliases=["show-settings"],
@@ -137,6 +146,7 @@ def main(argv: list[str] | None = None) -> int:
                 partitions=args.partitions,
                 spatial_index=args.spatial_index,
                 repetitions=args.n,
+                drop_table=args.drop_table,
                 progress=_matrix_progress,
             )
             if args.output is not None:
@@ -192,6 +202,8 @@ def main(argv: list[str] | None = None) -> int:
                 spatial_index=args.spatial_index,
                 dry_run=args.dry_run,
             )
+        if args.method != "matrix" and args.drop_table and not args.dry_run:
+            drop_ingested_table(settings, result.target_table)
     except (ConfigurationError, IngestionError, ServerSettingsError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
@@ -209,8 +221,12 @@ def main(argv: list[str] | None = None) -> int:
             print(" ".join(shlex.quote(argument) for argument in result.command))
         else:
             print("\n".join(result.statements))
+        if args.drop_table:
+            print(f"Cleanup after ingestion (not timed): {drop_table_statement(result.target_table)}")
     else:
         print(f"Loaded {args.dataset} with {args.method} in {_format_elapsed(result.elapsed_seconds)}.")
+        if args.drop_table:
+            print(f"Dropped {result.target_table} after ingestion (not timed).")
     return 0
 
 

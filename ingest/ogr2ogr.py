@@ -63,6 +63,7 @@ class IngestionResult:
 
     command: list[str]
     elapsed_seconds: float | None
+    target_table: str
 
 
 def build_command(
@@ -132,8 +133,9 @@ def run(
     """
 
     command = build_command(settings, dataset, table, ogr2ogr_bin, spatial_index)
+    target_table = command[command.index("-nln") + 1].lower()
     if dry_run:
-        return IngestionResult(command=command, elapsed_seconds=None)
+        return IngestionResult(command=command, target_table=target_table, elapsed_seconds=None)
     if shutil.which(ogr2ogr_bin) is None:
         raise IngestionError(
             f"Could not find {ogr2ogr_bin!r}. Install GDAL so the ogr2ogr command is available."
@@ -146,7 +148,7 @@ def run(
         subprocess.run(command, check=True, env=environment)
     except subprocess.CalledProcessError as error:
         raise IngestionError(f"ogr2ogr failed with exit status {error.returncode}.") from error
-    return IngestionResult(command=command, elapsed_seconds=time.perf_counter() - started_at)
+    return IngestionResult(command=command, target_table=target_table, elapsed_seconds=time.perf_counter() - started_at)
 
 
 def _validate_identifier(identifier: str) -> None:

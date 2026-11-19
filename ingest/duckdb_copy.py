@@ -22,6 +22,7 @@ class IngestionResult:
 
     statements: list[str]
     elapsed_seconds: float | None
+    target_table: str
 
 
 def build_statements(
@@ -84,7 +85,7 @@ def run(
 
     source, target_table, statements = build_statements(dataset, table, partitions, spatial_index)
     if dry_run:
-        return IngestionResult(statements=statements, elapsed_seconds=None)
+        return IngestionResult(statements=statements, target_table=target_table.lower(), elapsed_seconds=None)
     if shutil.which(psql_bin) is None:
         raise IngestionError(f"Could not find {psql_bin!r}. Install PostgreSQL client tools first.")
 
@@ -149,7 +150,7 @@ def run(
     finally:
         connection.close()
 
-    return IngestionResult(statements=statements, elapsed_seconds=time.perf_counter() - started_at)
+    return IngestionResult(statements=statements, target_table=target_table.lower(), elapsed_seconds=time.perf_counter() - started_at)
 
 
 def _create_table_statement(table: str, columns: list[tuple[object, ...]]) -> str:
