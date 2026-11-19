@@ -152,6 +152,26 @@ available method:
 uv run postgis-ingest matrix --datasets all --methods all --dry-run
 ```
 
+### Server settings
+
+Inspect the server settings that most directly affect bulk-load and index-build
+performance:
+
+```sh
+uv run postgis-ingest settings
+```
+
+Persist one or more values with `ALTER SYSTEM` and reload PostgreSQL's
+configuration. This requires a role allowed to run `ALTER SYSTEM`; the command
+prints the effective values afterwards.
+
+```sh
+uv run postgis-ingest set-settings \
+  --maintenance-work-mem 2GB \
+  --max-wal-size 16GB \
+  --checkpoint-timeout 30min
+```
+
 ### ADBC PostgreSQL
 
 Both ADBC routes stream the GeoParquet file as Arrow record batches through the

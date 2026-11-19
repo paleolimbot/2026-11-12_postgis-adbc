@@ -15,6 +15,7 @@ from ingest.matrix import METHODS, format_results, split_selection
 from ingest.matrix import run as run_matrix
 from ingest.ogr2ogr import IngestionError, build_command, discover_datasets
 from ingest.postgis import spatial_index_statement
+from ingest.server_settings import ServerSetting, format_settings
 
 
 def test_environment_overrides_dotenv(tmp_path: Path, monkeypatch) -> None:
@@ -174,6 +175,40 @@ def test_matrix_parser_accepts_comma_separated_selections() -> None:
 
     assert args.datasets == "ns-water_elevation,ns-water_water-poly"
     assert args.methods == "ogr2ogr,duckdb"
+
+
+def test_server_settings_commands_parse_values() -> None:
+    parser = build_parser()
+
+    shown = parser.parse_args(["settings"])
+    updated = parser.parse_args(
+        [
+            "set-settings",
+            "--maintenance-work-mem",
+            "2GB",
+            "--checkpoint-timeout",
+            "30min",
+        ]
+    )
+
+    assert shown.method == "settings"
+    assert updated.maintenance_work_mem == "2GB"
+    assert updated.max_wal_size is None
+    assert updated.checkpoint_timeout == "30min"
+
+
+def test_server_settings_formatter_includes_value_source_and_restart_state() -> None:
+    output = format_settings(
+        (
+            ServerSetting("maintenance_work_mem", "2097152", "kB", "configuration file", False),
+            ServerSetting("max_wal_size", "16", "GB", "configuration file", True),
+        )
+    )
+
+    assert "maintenance_work_mem" in output
+    assert "2097152kB" in output
+    assert "configuration file" in output
+    assert "yes" in output
 
 
 def test_matrix_all_shortcut_expands_and_cannot_be_mixed() -> None:

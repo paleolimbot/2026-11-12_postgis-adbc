@@ -17,6 +17,9 @@ from .matrix import format_results as format_matrix_results
 from .matrix import run as run_matrix
 from .ogr2ogr import DATASETS, IngestionError
 from .ogr2ogr import run as run_ogr2ogr
+from .server_settings import ServerSettingsError, format_settings
+from .server_settings import read as read_server_settings
+from .server_settings import update as update_server_settings
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -79,6 +82,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="pre-create a geometry column, then bulk-ingest WKB with ADBC",
     )
     _add_adbc_arguments(adbc_direct)
+
+    server_settings = subcommands.add_parser(
+        "settings",
+        aliases=["show-settings"],
+        help="show PostgreSQL bulk-load-related server settings",
+    )
+    server_settings.add_argument("--env-file", type=Path, default=Path(".env"), help="dotenv file (default: .env)")
+
+    set_server_settings = subcommands.add_parser(
+        "set-settings",
+        help="persist PostgreSQL bulk-load server settings and reload configuration",
+    )
+    set_server_settings.add_argument("--env-file", type=Path, default=Path(".env"), help="dotenv file (default: .env)")
+    set_server_settings.add_argument("--maintenance-work-mem", metavar="VALUE", help="new maintenance_work_mem value, e.g. 2GB")
+    set_server_settings.add_argument("--max-wal-size", metavar="VALUE", help="new max_wal_size value, e.g. 16GB")
+    set_server_settings.add_argument("--checkpoint-timeout", metavar="VALUE", help="new checkpoint_timeout value, e.g. 30min")
     return parser
 
 
@@ -86,6 +105,22 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         settings = load_postgres_settings(args.env_file)
+        if args.method in {"settings", "show-settings"}:
+            print(format_settings(read_server_settings(settings)))
+            return 0
+        if args.method == "set-settings":
+            reloaded, current_settings = update_server_settings(
+                settings,
+                {
+                    "maintenance_work_mem": args.maintenance_work_mem,
+                    "max_wal_size": args.max_wal_size,
+                    "checkpoint_timeout": args.checkpoint_timeout,
+                },
+            )
+            status = "reloaded" if reloaded else "not reloaded"
+            print(f"PostgreSQL configuration {status}.")
+            print(format_settings(current_settings))
+            return 0
         if args.method == "matrix":
             matrix_results = run_matrix(
                 settings,
@@ -148,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
                 spatial_index=args.spatial_index,
                 dry_run=args.dry_run,
             )
-    except (ConfigurationError, IngestionError) as error:
+    except (ConfigurationError, IngestionError, ServerSettingsError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 
