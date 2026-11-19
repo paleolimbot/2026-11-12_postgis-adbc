@@ -11,6 +11,11 @@ format:
       data-background-color: "#2556BB"
 ---
 
+```{r,setup}
+#| include: false
+library(tidyverse)
+```
+
 ## {background-image="bg/wb4.png"}
 
 ::: {style="text-align: center;"}
@@ -85,11 +90,52 @@ library(adbcdrivermanager)
 
 ```
 
+## The results
+
+```{r}
+#| echo: false
+
+results <- list.files(pattern = "\\.csv$", full.names = TRUE) |>
+  purrr::map_dfr(readr::read_csv, show_col_types = FALSE) |>
+  dplyr::filter(status == "ok") |>
+  dplyr::mutate(
+    method = factor(
+      method,
+      levels = c("geopandas", "ogr2ogr", "duckdb", "duckdb-copy", "adbc-alter", "adbc-direct") |>
+        rev()
+    )
+  )
+
+results |>
+  filter(dataset != "microsoft-buildings_point") |>
+  ggplot(aes(x = elapsed_seconds, y = method, colour = name)) +
+  geom_jitter(height = 0.15, width = 0, alpha = 0.8, size = 2) +
+  facet_wrap(~dataset, ncol = 2) +
+  scale_x_continuous(limits = c(0, NA)) +
+  labs(x = "Time (seconds)", y = NULL, colour = NULL) +
+  theme_minimal(base_size = 18) +
+  theme(legend.position = "bottom")
+```
+
+## The results
+
+```{r}
+#| echo: false
+
+results |>
+  filter(dataset == "microsoft-buildings_point") |>
+  ggplot(aes(x = elapsed_seconds, y = method, colour = name)) +
+  geom_jitter(height = 0.15, width = 0, alpha = 0.8, size = 2) +
+  facet_wrap(~dataset, ncol = 2) +
+  scale_x_continuous(limits = c(0, NA)) +
+  labs(x = "Time (seconds)", y = NULL, colour = NULL) +
+  theme_minimal(base_size = 18) +
+  theme(legend.position = "bottom")
+```
+
 ## The moment you've all been waiting for...
 
-## geopandas
-
-## Two basic approaches
+## Two basic approaches: INSERT
 
 Insert + bind (geopandas, ogr2ogr without PG_USECOPY=1):
 
@@ -103,7 +149,17 @@ INSERT INTO dst VALUES (...);
 
 ![](bg/geopandas.png)
 
-## Two basic approaches
+## Two basic approaches: COPY
+
+COPY (DuckDB, ogr2ogr with PG_USECOPY=1, ADBC):
+
+```sql
+COPY () FORMAT BINARY;
+```
+
+![](bg/adbc.png)
+
+## 2.5 basic approaches: Multiplexed COPY
 
 COPY (DuckDB, ogr2ogr with PG_USECOPY=1, ADBC):
 
