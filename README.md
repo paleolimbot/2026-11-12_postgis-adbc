@@ -104,6 +104,25 @@ Preview the workflow without connecting:
 uv run postgis-ingest duckdb-copy --partitions 4 --dry-run
 ```
 
+### GeoPandas
+
+`geopandas` is the common high-level GIS Python path. It materializes the
+fixture with PyArrow, turns its WKB `geometry` column into a `GeoDataFrame`,
+then calls `GeoDataFrame.to_postgis()` with SQLAlchemy, GeoAlchemy2, and
+psycopg. This measures both GeoPandas conversion and the write, and replaces
+`ns_water_elevation_geopandas` by default. It deliberately does not create a
+spatial index, matching the other ingestion benchmarks:
+
+```sh
+uv run postgis-ingest geopandas
+```
+
+Preview the workflow without connecting:
+
+```sh
+uv run postgis-ingest geopandas --dry-run
+```
+
 ### ADBC PostgreSQL
 
 Both ADBC routes stream the GeoParquet file as Arrow record batches through the

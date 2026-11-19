@@ -6,7 +6,11 @@ requires-python = ">=3.11"
 dependencies = [
     "adbc-driver-postgresql==1.13.0",
     "duckdb==2.0.0",
+    "geoalchemy2==0.20.0",
+    "geopandas==1.2.0",
     "pyarrow==26.0.1",
+    "psycopg[binary]==3.3.9",
+    "sqlalchemy==2.1.9",
 ]
 
 [project.scripts]

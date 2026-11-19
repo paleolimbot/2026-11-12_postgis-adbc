@@ -3,10 +3,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from ingest.__main__ import _format_elapsed
-from ingest.adbc import build_direct_statements, build_statements as build_adbc_statements
+from ingest.adbc import build_direct_statements
+from ingest.adbc import build_statements as build_adbc_statements
 from ingest.config import PostgresSettings, load_postgres_settings
-from ingest.duckdb_copy import build_statements as build_duckdb_copy_statements
 from ingest.duckdb import build_statements
+from ingest.duckdb_copy import build_statements as build_duckdb_copy_statements
+from ingest.geopandas import build_statements as build_geopandas_statements
 from ingest.ogr2ogr import build_command, discover_datasets
 
 
@@ -122,6 +124,21 @@ def test_duckdb_copy_statements_partition_and_load_with_psql(tmp_path: Path) -> 
     assert "FORMAT postgres_binary" in output
     assert "4 concurrent clients" in output
     assert "\\copy sample_duckdb_copy" in output
+
+
+def test_geopandas_statements_read_wkb_then_replace_table(tmp_path: Path) -> None:
+    source = tmp_path / "source.parquet"
+    source.touch()
+    datasets = {"sample": {"source": source, "layer": "source", "table": "sample_ogr2ogr"}}
+    with patch("ingest.geopandas.DATASETS", datasets):
+        _, target_table, statements = build_geopandas_statements("sample")
+
+    output = "\n".join(statements)
+    assert target_table == "sample_geopandas"
+    assert "pyarrow.parquet.read_table" in output
+    assert "GeoSeries.from_wkb" in output
+    assert "to_postgis('sample_geopandas'" in output
+    assert "if_exists='replace'" in output
 
 
 def test_elapsed_time_is_human_readable() -> None:
