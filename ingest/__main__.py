@@ -12,7 +12,7 @@ from .config import ConfigurationError, load_postgres_settings
 from .duckdb import run as run_duckdb
 from .duckdb_copy import run as run_duckdb_copy
 from .geopandas import run as run_geopandas
-from .matrix import METHODS, split_selection
+from .matrix import METHODS, split_selection, write_results as write_matrix_results
 from .matrix import format_results as format_matrix_results
 from .matrix import run as run_matrix
 from .ogr2ogr import DATASETS, IngestionError
@@ -68,6 +68,9 @@ def build_parser() -> argparse.ArgumentParser:
     matrix.add_argument("--psql-bin", default="psql", help="psql executable for duckdb-copy (default: psql)")
     matrix.add_argument("--partitions", type=int, default=1, help="duckdb-copy partitions (default: 1)")
     matrix.add_argument("--spatial-index", action="store_true", help="create a GiST spatial index for every matrix cell")
+    matrix.add_argument("--n", type=_positive_integer, default=1, help="repeat the complete matrix N times (default: 1)")
+    matrix.add_argument("--name", help="label included in every --output row")
+    matrix.add_argument("--output", type=Path, help="write results to a .csv or .tsv file")
     matrix.add_argument("--dry-run", action="store_true", help="validate and print the matrix without loading data")
 
     adbc_alter = subcommands.add_parser(
@@ -122,6 +125,8 @@ def main(argv: list[str] | None = None) -> int:
             print(format_settings(current_settings))
             return 0
         if args.method == "matrix":
+            if args.output is not None and args.name is None:
+                raise IngestionError("--name is required when using --output.")
             matrix_results = run_matrix(
                 settings,
                 split_selection(args.datasets, "datasets", tuple(DATASETS)),
@@ -131,7 +136,11 @@ def main(argv: list[str] | None = None) -> int:
                 psql_bin=args.psql_bin,
                 partitions=args.partitions,
                 spatial_index=args.spatial_index,
+                repetitions=args.n,
+                progress=_matrix_progress,
             )
+            if args.output is not None:
+                write_matrix_results(args.output, matrix_results, name=args.name, dry_run=args.dry_run)
         elif args.method == "ogr2ogr":
             result = run_ogr2ogr(
                 settings=settings,
@@ -188,7 +197,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.method == "matrix":
-        print(format_matrix_results(matrix_results, args.dry_run))
+        print(format_matrix_results(matrix_results, args.dry_run, include_iteration=args.n > 1))
+        if args.output is not None:
+            print(f"Wrote {len(matrix_results)} result row(s) to {args.output}.")
         return 1 if any(result.error for result in matrix_results) else 0
 
     if args.dry_run:
@@ -209,6 +220,17 @@ def _add_adbc_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--env-file", type=Path, default=Path(".env"), help="dotenv file (default: .env)")
     parser.add_argument("--spatial-index", action="store_true", help="create a GiST spatial index after loading")
     parser.add_argument("--dry-run", action="store_true", help="print the ingestion steps without connecting to Postgres")
+
+
+def _positive_integer(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return parsed
+
+
+def _matrix_progress(iteration: int, dataset: str, method: str) -> None:
+    print(f"Running iteration {iteration}: {dataset} × {method}...", flush=True)
 
 
 def _format_elapsed(seconds: float | None) -> str:

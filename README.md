@@ -152,6 +152,16 @@ available method:
 uv run postgis-ingest matrix --datasets all --methods all --dry-run
 ```
 
+Repeat the complete matrix with `--n`. To save machine-readable benchmark
+results, pass a label and a `.csv` or `.tsv` destination; output rows include
+the label, iteration, dataset, method, raw elapsed seconds, and any error.
+
+```sh
+uv run postgis-ingest matrix \
+  --datasets all --methods all --n 3 \
+  --name remote-tuned --output results.tsv
+```
+
 ### Server settings
 
 Inspect the server settings that most directly affect bulk-load and index-build

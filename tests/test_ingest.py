@@ -11,7 +11,7 @@ from ingest.config import PostgresSettings, load_postgres_settings
 from ingest.duckdb import build_statements
 from ingest.duckdb_copy import build_statements as build_duckdb_copy_statements
 from ingest.geopandas import build_statements as build_geopandas_statements
-from ingest.matrix import METHODS, format_results, split_selection
+from ingest.matrix import METHODS, MatrixResult, format_results, split_selection, write_results
 from ingest.matrix import run as run_matrix
 from ingest.ogr2ogr import IngestionError, build_command, discover_datasets
 from ingest.postgis import spatial_index_statement
@@ -177,6 +177,50 @@ def test_matrix_parser_accepts_comma_separated_selections() -> None:
     assert args.methods == "ogr2ogr,duckdb"
 
 
+def test_matrix_parser_accepts_repetitions_and_output_options(tmp_path: Path) -> None:
+    output = tmp_path / "results.tsv"
+    args = build_parser().parse_args(
+        [
+            "matrix",
+            "--datasets",
+            "ns-water_elevation",
+            "--methods",
+            "duckdb",
+            "--n",
+            "3",
+            "--name",
+            "remote-tuned",
+            "--output",
+            str(output),
+        ]
+    )
+
+    assert args.n == 3
+    assert args.name == "remote-tuned"
+    assert args.output == output
+
+
+def test_matrix_output_writes_tsv_with_name_and_iteration(tmp_path: Path) -> None:
+    output = tmp_path / "results.tsv"
+
+    write_results(
+        output,
+        [MatrixResult("fixture", "duckdb", 1.25, None, iteration=2)],
+        name="remote-tuned",
+        dry_run=False,
+    )
+
+    assert output.read_text(encoding="utf-8") == (
+        "name\titeration\tdataset\tmethod\tstatus\telapsed_seconds\terror\n"
+        "remote-tuned\t2\tfixture\tduckdb\tok\t1.25\t\n"
+    )
+
+
+def test_matrix_output_requires_csv_or_tsv_suffix(tmp_path: Path) -> None:
+    with pytest.raises(IngestionError, match=".csv or .tsv"):
+        write_results(tmp_path / "results.txt", [], name="run", dry_run=False)
+
+
 def test_server_settings_commands_parse_values() -> None:
     parser = build_parser()
 
@@ -235,6 +279,32 @@ def test_matrix_dry_run_reports_every_pair() -> None:
     assert len(results) == 2
     assert all(result.error is None for result in results)
     assert "dry run" in format_results(results, dry_run=True)
+
+
+def test_matrix_repeats_the_complete_selection() -> None:
+    settings = PostgresSettings("localhost", "5432", "postgres", "postgres", "secret")
+    started: list[tuple[int, str, str]] = []
+
+    results = run_matrix(
+        settings,
+        ("ns-water_elevation",),
+        ("ogr2ogr",),
+        dry_run=True,
+        ogr2ogr_bin="ogr2ogr",
+        psql_bin="psql",
+        partitions=1,
+        spatial_index=False,
+        repetitions=3,
+        progress=lambda iteration, dataset, method: started.append((iteration, dataset, method)),
+    )
+
+    assert [result.iteration for result in results] == [1, 2, 3]
+    assert started == [
+        (1, "ns-water_elevation", "ogr2ogr"),
+        (2, "ns-water_elevation", "ogr2ogr"),
+        (3, "ns-water_elevation", "ogr2ogr"),
+    ]
+    assert "iteration" in format_results(results, dry_run=True, include_iteration=True)
 
 
 def test_spatial_index_statement_shortens_long_index_names() -> None:

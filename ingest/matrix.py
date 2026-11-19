@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
 
 from .adbc import run as run_adbc_alter
 from .adbc import run_direct as run_adbc_direct
@@ -31,6 +34,7 @@ class MatrixResult:
     method: str
     elapsed_seconds: float | None
     error: str | None
+    iteration: int = 1
 
 
 def split_selection(value: str, name: str, all_values: tuple[str, ...]) -> tuple[str, ...]:
@@ -56,6 +60,8 @@ def run(
     psql_bin: str,
     partitions: int,
     spatial_index: bool,
+    repetitions: int = 1,
+    progress: Callable[[int, str, str], None] | None = None,
 ) -> list[MatrixResult]:
     """Run every selected dataset/method pair, retaining individual failures."""
 
@@ -65,32 +71,38 @@ def run(
     unknown_methods = sorted(set(methods).difference(METHODS))
     if unknown_methods:
         raise IngestionError(f"Unknown method(s): {', '.join(unknown_methods)}.")
+    if repetitions < 1:
+        raise IngestionError("--n must be at least 1.")
 
     results: list[MatrixResult] = []
-    for dataset in datasets:
-        for method in methods:
-            try:
-                result = _run_method(
-                    method,
-                    settings=settings,
-                    dataset=dataset,
-                    dry_run=dry_run,
-                    ogr2ogr_bin=ogr2ogr_bin,
-                    psql_bin=psql_bin,
-                    partitions=partitions,
-                    spatial_index=spatial_index,
-                )
-            except IngestionError as error:
-                results.append(MatrixResult(dataset, method, None, str(error)))
-            else:
-                results.append(MatrixResult(dataset, method, result.elapsed_seconds, None))
+    for iteration in range(1, repetitions + 1):
+        for dataset in datasets:
+            for method in methods:
+                if progress is not None:
+                    progress(iteration, dataset, method)
+                try:
+                    result = _run_method(
+                        method,
+                        settings=settings,
+                        dataset=dataset,
+                        dry_run=dry_run,
+                        ogr2ogr_bin=ogr2ogr_bin,
+                        psql_bin=psql_bin,
+                        partitions=partitions,
+                        spatial_index=spatial_index,
+                    )
+                except IngestionError as error:
+                    results.append(MatrixResult(dataset, method, None, str(error), iteration))
+                else:
+                    results.append(MatrixResult(dataset, method, result.elapsed_seconds, None, iteration))
     return results
 
 
-def format_results(results: list[MatrixResult], dry_run: bool) -> str:
+def format_results(results: list[MatrixResult], dry_run: bool, include_iteration: bool = False) -> str:
     """Render a compact table suitable for terminal output."""
 
-    rows = [("dataset", "method", "status", "elapsed")]
+    headers = ("iteration", "dataset", "method", "status", "elapsed") if include_iteration else ("dataset", "method", "status", "elapsed")
+    rows = [headers]
     for result in results:
         if result.error:
             status = f"error: {result.error}"
@@ -101,13 +113,51 @@ def format_results(results: list[MatrixResult], dry_run: bool) -> str:
         else:
             status = "ok"
             elapsed = _format_elapsed(result.elapsed_seconds)
-        rows.append((result.dataset, result.method, status, elapsed))
+        values = (result.dataset, result.method, status, elapsed)
+        rows.append((str(result.iteration), *values) if include_iteration else values)
 
-    widths = [max(len(row[index]) for row in rows) for index in range(4)]
+    widths = [max(len(row[index]) for row in rows) for index in range(len(headers))]
     return "\n".join(
         "  ".join(value.ljust(widths[index]) for index, value in enumerate(row)).rstrip()
         for row in rows
     )
+
+
+def write_results(path: Path, results: list[MatrixResult], *, name: str, dry_run: bool) -> None:
+    """Write matrix results as CSV or TSV, inferred from the output suffix."""
+
+    delimiter = {".csv": ",", ".tsv": "\t"}.get(path.suffix.lower())
+    if delimiter is None:
+        raise IngestionError("--output must have a .csv or .tsv extension.")
+
+    try:
+        with path.open("w", encoding="utf-8", newline="") as output:
+            writer = csv.DictWriter(
+                output,
+                fieldnames=("name", "iteration", "dataset", "method", "status", "elapsed_seconds", "error"),
+                delimiter=delimiter,
+            )
+            writer.writeheader()
+            for result in results:
+                if result.error:
+                    status = "error"
+                elif dry_run:
+                    status = "dry run"
+                else:
+                    status = "ok"
+                writer.writerow(
+                    {
+                        "name": name,
+                        "iteration": result.iteration,
+                        "dataset": result.dataset,
+                        "method": result.method,
+                        "status": status,
+                        "elapsed_seconds": result.elapsed_seconds if result.elapsed_seconds is not None else "",
+                        "error": result.error or "",
+                    }
+                )
+    except OSError as error:
+        raise IngestionError(f"Could not write matrix output {path}: {error}") from error
 
 
 def _run_method(
