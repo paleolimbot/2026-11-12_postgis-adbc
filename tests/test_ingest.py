@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from ingest.__main__ import _format_elapsed
+from ingest.adbc import build_direct_statements, build_statements as build_adbc_statements
 from ingest.config import PostgresSettings, load_postgres_settings
 from ingest.duckdb import build_statements
 from ingest.ogr2ogr import build_command
@@ -63,6 +64,35 @@ def test_duckdb_dry_run_does_not_expose_password(tmp_path: Path) -> None:
         _, _, statements = build_statements("sample")
 
     assert "<redacted>" in "\n".join(statements)
+
+
+def test_adbc_alter_statements_ingest_wkb_then_convert_geometry(tmp_path: Path) -> None:
+    source = tmp_path / "source.parquet"
+    source.touch()
+    datasets = {"sample": {"source": source, "layer": "source", "table": "sample_ogr2ogr"}}
+    with patch("ingest.adbc.DATASETS", datasets):
+        _, target_table, statements = build_adbc_statements("sample")
+
+    output = "\n".join(statements)
+    assert target_table == "sample_adbc"
+    assert "adbc_ingest('sample_adbc', reader, mode='replace')" in output
+    assert "ALTER TABLE sample_adbc ALTER COLUMN geometry TYPE geometry" in output
+    assert "ST_GeomFromWKB(geometry)" in output
+
+
+def test_adbc_direct_statements_precreate_geometry_then_append_wkb(tmp_path: Path) -> None:
+    source = tmp_path / "source.parquet"
+    source.touch()
+    datasets = {"sample": {"source": source, "layer": "source", "table": "sample_ogr2ogr"}}
+    with patch("ingest.adbc.DATASETS", datasets):
+        _, target_table, statements = build_direct_statements("sample")
+
+    output = "\n".join(statements)
+    assert target_table == "sample_adbc_direct"
+    assert "CREATE TABLE sample_adbc_direct" in output
+    assert "geometry geometry" in output
+    assert "adbc_ingest('sample_adbc_direct', reader, mode='append')" in output
+    assert "ALTER TABLE" not in output
 
 
 def test_elapsed_time_is_human_readable() -> None:

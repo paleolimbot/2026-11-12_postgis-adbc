@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Reproducible PostGIS ingestion implementations"
 requires-python = ">=3.11"
 dependencies = [
+    "adbc-driver-postgresql==1.13.0",
     "duckdb==2.0.0",
+    "pyarrow==26.0.1",
 ]
 
 [project.scripts]

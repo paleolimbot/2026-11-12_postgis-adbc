@@ -77,6 +77,35 @@ the password-free DuckDB SQL without opening a database connection:
 uv run postgis-ingest duckdb --dry-run
 ```
 
+### ADBC PostgreSQL
+
+Both ADBC routes stream the GeoParquet file as Arrow record batches through the
+ADBC PostgreSQL driver's bulk-ingest API and replace only their own
+method-specific destination table.
+
+`adbc-alter` (also available as the `adbc` alias) lets ADBC create the table.
+This maps the source WKB geometry to PostgreSQL `bytea`, then rewrites the table
+to convert that column with `ST_GeomFromWKB`; its default table is
+`ns_water_elevation_adbc`:
+
+```sh
+uv run postgis-ingest adbc-alter
+```
+
+`adbc-direct` instead pre-creates the PostGIS `geometry` column and appends the
+WKB directly through ADBC's binary COPY path. This avoids the conversion pass
+and uses `ns_water_elevation_adbc_direct` by default:
+
+```sh
+uv run postgis-ingest adbc-direct
+```
+
+Preview either route without connecting:
+
+```sh
+uv run postgis-ingest adbc-direct --dry-run
+```
+
 Run the tests with:
 
 ```sh
