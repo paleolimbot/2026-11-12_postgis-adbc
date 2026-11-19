@@ -39,58 +39,94 @@ library(tidyverse)
 
 ![](bg/geology.jpg)
 
-## How this all came about {background-image="bg/wb4.png"}
+## How this all came about {background-image="bg/wb3.png"}
 
 ![](bg/it-all-started.png)
 
 https://dewey.dunnington.ca/post/2024/wrangling-and-joining-130m-points-with-duckdb--the-open-source-spatial-stack/
 
-## geopandas
+## How this all came about {background-image="bg/wb3.png"}
+
+- PostGIS is a great way to use all of your (or your server's) cores to execute a lot of tiny window queries or a spatial join
+- ...but you have to get the data into PostGIS
+
+## geopandas {background-image="bg/wb3.png"}
 
 ```python
 import geopandas as gpd
+import pyarrow.parquet as pq
+from geoalchemy2 import Geometry
 
-gpd.read_file(...).to_postgis()
+table = pq.read_table("fixture.parquet")
+gdf = table.to_pandas()
+gdf["geometry"] = gpd.GeoSeries.from_wkb(gdf["geometry"])
+gdf = gpd.GeoDataFrame(gdf, geometry="geometry")
+
+gdf.to_postgis(
+    "destination", engine, if_exists="replace", index=False,
+    dtype={"geometry": Geometry(spatial_index=False)},
+)
 ```
 
-## ogr2ogr
+Good: intuitive!
+Tricky: materialize the entire table up front, slowest method
+
+## ogr2ogr {background-image="bg/wb3.png"}
 
 ```shell
-ogr2ogr
+ogr2ogr --config PG_USE_COPY YES \
+  -f PostgreSQL -overwrite -nln destination \
+  -lco GEOMETRY_NAME=geom -lco SPATIAL_INDEX=NONE \
+  "PG:host=... dbname=... user=..." \
+  fixture.parquet fixture
 ```
 
-## duckdb
+Good: one liner, flexible input
+Tricky: must remember to ingest without spatial index and with copy, need to find a build with Arrow for Parquet
+
+## duckdb {background-image="bg/wb3.png"}
 
 ```sql
-ATTACH
+INSTALL postgres; LOAD postgres;
+INSTALL spatial;  LOAD spatial;
 
-CREATE TABLE ... as SELECT * FROM "foofy.parquet"
+CREATE SECRET postgis_ingest (TYPE postgres, ...);
+ATTACH '' AS postgis (TYPE postgres, SECRET postgis_ingest);
+
+DROP TABLE IF EXISTS postgis.destination;
+CREATE TABLE postgis.destination AS
+  SELECT * FROM read_parquet('fixture.parquet');
 ```
 
-## ADBC
+Good: great if you're in the DuckDB ecosystem! Fastest over the network.
+Tricky: No Z value support
 
-In Python:
+## ADBC (Python: adbc-alter)  {background-image="bg/wb3.png"}
 
 ```python
-import adbc_driver_postgresql
+import adbc_driver_postgresql.dbapi as dbapi
+import pyarrow as pa
+import pyarrow.parquet as pq
 
-conn = adbc_driver_postgresql.dbapi.connect(...)
-with conn.cursor() as cur:
-    ...
+parquet = pq.ParquetFile("fixture.parquet")
+reader = pa.RecordBatchReader.from_batches(
+    parquet.schema_arrow, parquet.iter_batches()
+)
+
+with dbapi.connect(uri) as conn, conn.cursor() as cur:
+    cur.adbc_ingest("destination", reader, mode="replace")
+    cur.execute("""
+        ALTER TABLE destination ALTER COLUMN geometry TYPE geometry
+        USING ST_GeomFromWKB(geometry)
+    """)
 ```
 
+Good: Flexible and low dependency (any Arrow stream in!)
+Tricky: Requires an ALTER TABLE without a workaround
 
-## ADBC
+## The moment you've all been waiting for... {background-image="bg/wb3.png"}
 
-Also works in R:
-
-```r
-library(adbcdrivermanager)
-
-
-```
-
-## The results
+## The results  {background-image="bg/wb3.png"}
 
 ```{r}
 #| echo: false
@@ -117,7 +153,7 @@ results |>
   theme(legend.position = "bottom")
 ```
 
-## The results
+## The results  {background-image="bg/wb3.png"}
 
 ```{r}
 #| echo: false
@@ -133,9 +169,7 @@ results |>
   theme(legend.position = "bottom")
 ```
 
-## The moment you've all been waiting for...
-
-## Two basic approaches: INSERT
+## Two basic approaches: INSERT  {background-image="bg/wb3.png"}
 
 Insert + bind (geopandas, ogr2ogr without PG_USECOPY=1):
 
@@ -149,7 +183,7 @@ INSERT INTO dst VALUES (...);
 
 ![](bg/geopandas.png)
 
-## Two basic approaches: COPY
+## Two basic approaches: COPY  {background-image="bg/wb3.png"}
 
 COPY (DuckDB, ogr2ogr with PG_USECOPY=1, ADBC):
 
@@ -159,17 +193,22 @@ COPY () FORMAT BINARY;
 
 ![](bg/adbc.png)
 
-## 2.5 basic approaches: Multiplexed COPY
+## 2.5 basic approaches: Multiplexed COPY  {background-image="bg/wb3.png"}
 
-COPY (DuckDB, ogr2ogr with PG_USECOPY=1, ADBC):
+COPY (DuckDB, DuckDB-copy):
 
 ```sql
+COPY () FORMAT BINARY;
+COPY () FORMAT BINARY;
+COPY () FORMAT BINARY;
+COPY () FORMAT BINARY;
+COPY () FORMAT BINARY;
 COPY () FORMAT BINARY;
 ```
 
 ![](bg/adbc.png)
 
-## Parquet + Arrow make it possible
+## Parquet + Arrow make it possible  {background-image="bg/wb3.png"}
 
 - Stream anything from source to destination, low dependency
 - Enables anything exportable as Arrow to go through the DuckDB path
@@ -177,12 +216,13 @@ COPY () FORMAT BINARY;
 - Parquet storage is fast + flexible + small
 - Enables DuckDB and SedonaDB to leverage GDAL's readers
 
-## Parquet + Arrow make it possible
+## Parquet + Arrow make it possible   {background-image="bg/wb3.png"}
 
 But some holes to fill in the ecosystem:
 
 - ADBC's Postgres driver needs native PostGIS support for the fast COPY path
 - All of the non-GDAL tools have a questionable CRS propagation game
+- DuckDB has trouble with Z values
 
 ## {background="#26374a"}
 
