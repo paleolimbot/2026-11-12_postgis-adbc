@@ -38,14 +38,26 @@ Each ingestion implementation lives in the Python `ingest` package and uses the
 Postgres connection values in `.env`. Every `*.parquet` fixture in `data/` is
 available through its filename stem: for example,
 `data/ns-water_water-poly.parquet` is selected with
-`--dataset ns-water_water-poly`. Each method uses its own destination table, so
-the same source can be loaded for comparison.
+`--dataset ns-water_water-poly`. Non-Parquet fixtures use their full filename,
+so `data/ns-water_elevation.fgb` is selected with
+`--dataset ns-water_elevation.fgb`. FlatGeobuf is supported by every loader;
+each method keeps its reader's native geometry column name (`wkb_geometry` for
+the Pyogrio/ADBC stream and `geom` for DuckDB). Each method uses its own
+destination table, so the same source can be loaded for comparison.
 
 Download just this source (only required once), start PostGIS as above, then run:
 
 ```sh
 ./data/fetch.sh ns-water_elevation
 uv run postgis-ingest ogr2ogr
+```
+
+Download the raw FlatGeobuf versions of Nova Scotia elevation and water
+polygons from GeoArrow (these release assets are already uncompressed):
+
+```sh
+./data/fetch.sh ns-water-fgb
+uv run postgis-ingest ogr2ogr --dataset ns-water_elevation.fgb
 ```
 
 Choose another fixture with `--dataset`; run `postgis-ingest <method> --help`

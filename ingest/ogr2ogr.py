@@ -17,21 +17,26 @@ DATA_DIRECTORY = PROJECT_ROOT / "data"
 
 
 def discover_datasets(data_directory: Path = DATA_DIRECTORY) -> dict[str, dict[str, Path | str]]:
-    """Return every Parquet fixture in ``data_directory``, keyed by file stem.
+    """Return supported fixtures in ``data_directory``, keyed for CLI selection.
 
     A fresh CLI process discovers files added to ``data/`` automatically, so a
     fixture named ``example-data.parquet`` is selected with
-    ``--dataset example-data``.
+    ``--dataset example-data``. Non-Parquet formats retain their full filename
+    to avoid colliding with an equivalent Parquet fixture: select
+    ``example-data.fgb`` for a FlatGeobuf file.
     """
 
     datasets = {}
     for source in sorted(data_directory.iterdir() if data_directory.is_dir() else (), key=lambda path: path.name):
-        if not source.is_file() or source.suffix.lower() != ".parquet":
+        suffix = source.suffix.lower()
+        if not source.is_file() or suffix not in {".parquet", ".fgb"}:
             continue
-        datasets[source.stem] = {
+        dataset = source.stem if suffix == ".parquet" else source.name
+        table_stem = source.stem if suffix == ".parquet" else source.name
+        datasets[dataset] = {
             "source": source,
             "layer": source.stem,
-            "table": f"{_table_stem(source.stem)}_ogr2ogr",
+            "table": f"{_table_stem(table_stem)}_ogr2ogr",
         }
     return datasets
 
@@ -86,7 +91,7 @@ def build_command(
     target_table = table or definition["table"]
     _validate_identifier(target_table)
 
-    return [
+    command = [
         ogr2ogr_bin,
         "--config",
         "PG_USE_COPY",
@@ -102,8 +107,13 @@ def build_command(
         f"SPATIAL_INDEX={'GIST' if spatial_index else 'NONE'}",
         f"PG:{settings.ogr_connection_string()}",
         str(source),
-        definition["layer"],
     ]
+    # GeoArrow's FlatGeobuf layer names are implementation details (currently
+    # suffixed with `.tmp`), unlike their filenames. Let GDAL copy the only
+    # layer instead of selecting it by name.
+    if source.suffix.lower() != ".fgb":
+        command.append(definition["layer"])
+    return command
 
 
 def run(

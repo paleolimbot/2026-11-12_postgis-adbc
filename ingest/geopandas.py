@@ -41,8 +41,7 @@ def build_statements(
     target_table = table or f"{definition['table'].removesuffix('_ogr2ogr')}_geopandas"
     _validate_identifier(target_table)
     statements = [
-        f"PyArrow: pyarrow.parquet.read_table({source});",
-        "GeoPandas: GeoSeries.from_wkb(table['geometry']);",
+        *_read_steps(source),
         (
             "GeoPandas: GeoDataFrame.to_postgis("
             f"'{target_table}', engine, if_exists='replace', index=False, "
@@ -59,7 +58,7 @@ def run(
     spatial_index: bool = False,
     dry_run: bool = False,
 ) -> IngestionResult:
-    """Read WKB Parquet into a GeoDataFrame and replace its PostGIS table."""
+    """Read GeoParquet or FlatGeobuf into a GeoDataFrame and replace its table."""
 
     source, target_table, statements = build_statements(dataset, table, spatial_index)
     if dry_run:
@@ -68,7 +67,6 @@ def run(
     try:
         import geoalchemy2
         import geopandas
-        import pyarrow.parquet
         import sqlalchemy
     except ModuleNotFoundError as error:
         raise IngestionError(
@@ -78,10 +76,15 @@ def run(
     engine = sqlalchemy.create_engine(_postgres_url(settings))
     try:
         started_at = time.perf_counter()
-        arrow_table = pyarrow.parquet.read_table(source)
-        frame = arrow_table.to_pandas()
-        frame["geometry"] = geopandas.GeoSeries.from_wkb(frame["geometry"])
-        frame = geopandas.GeoDataFrame(frame, geometry="geometry")
+        if source.suffix.lower() == ".fgb":
+            frame = geopandas.read_file(source)
+        else:
+            import pyarrow.parquet
+
+            arrow_table = pyarrow.parquet.read_table(source)
+            frame = arrow_table.to_pandas()
+            frame["geometry"] = geopandas.GeoSeries.from_wkb(frame["geometry"])
+            frame = geopandas.GeoDataFrame(frame, geometry="geometry")
         frame.to_postgis(
             target_table,
             engine,
@@ -114,3 +117,12 @@ def _postgres_url(settings: PostgresSettings) -> str:
 
 def _redact_error(message: str, password: str) -> str:
     return message.replace(password, "<redacted>").replace(quote(password, safe=""), "<redacted>")
+
+
+def _read_steps(source: Path) -> list[str]:
+    if source.suffix.lower() == ".fgb":
+        return [f"GeoPandas: geopandas.read_file({source});"]
+    return [
+        f"PyArrow: pyarrow.parquet.read_table({source});",
+        "GeoPandas: GeoSeries.from_wkb(table['geometry']);",
+    ]

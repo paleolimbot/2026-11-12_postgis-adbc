@@ -35,16 +35,19 @@ def test_environment_overrides_dotenv(tmp_path: Path, monkeypatch) -> None:
     assert settings.host == "127.0.0.1"
 
 
-def test_dataset_discovery_uses_parquet_stems_and_safe_table_names(tmp_path: Path) -> None:
+def test_dataset_discovery_uses_parquet_stems_and_non_parquet_filenames(tmp_path: Path) -> None:
     (tmp_path / "water-poly.parquet").touch()
+    (tmp_path / "water-poly.fgb").touch()
     (tmp_path / "2026 buildings.parquet").touch()
     (tmp_path / "notes.txt").touch()
 
     datasets = discover_datasets(tmp_path)
 
-    assert set(datasets) == {"water-poly", "2026 buildings"}
+    assert set(datasets) == {"water-poly", "water-poly.fgb", "2026 buildings"}
     assert datasets["water-poly"]["layer"] == "water-poly"
     assert datasets["water-poly"]["table"] == "water_poly_ogr2ogr"
+    assert datasets["water-poly.fgb"]["layer"] == "water-poly"
+    assert datasets["water-poly.fgb"]["table"] == "water_poly_fgb_ogr2ogr"
     assert datasets["2026 buildings"]["table"] == "data_2026_buildings_ogr2ogr"
 
 
@@ -76,6 +79,20 @@ def test_ogr_command_can_request_its_builtin_spatial_index(tmp_path: Path) -> No
         )
 
     assert "SPATIAL_INDEX=GIST" in command
+
+
+def test_ogr_command_lets_gdal_select_the_flatgeobuf_layer(tmp_path: Path) -> None:
+    source = tmp_path / "source.fgb"
+    source.touch()
+    datasets = {"sample.fgb": {"source": source, "layer": "source", "table": "sample_fgb_ogr2ogr"}}
+    with patch("ingest.ogr2ogr.DATASETS", datasets):
+        command = build_command(
+            PostgresSettings("localhost", "5432", "postgres", "postgres", "secret"),
+            "sample.fgb",
+        )
+
+    assert str(source) == command[-1]
+    assert "source" not in command
 
 
 def test_duckdb_statements_use_postgres_and_spatial_extensions(tmp_path: Path) -> None:
@@ -160,6 +177,41 @@ def test_geopandas_statements_read_wkb_then_replace_table(tmp_path: Path) -> Non
     assert "GeoSeries.from_wkb" in output
     assert "to_postgis('sample_geopandas'" in output
     assert "if_exists='replace'" in output
+
+
+def test_flatgeobuf_statements_preserve_reader_geometry_column_names(tmp_path: Path) -> None:
+    source = tmp_path / "sample.fgb"
+    source.touch()
+    datasets = {
+        "sample.fgb": {
+            "source": source,
+            "layer": "sample",
+            "table": "sample_fgb_ogr2ogr",
+        }
+    }
+
+    with (
+        patch("ingest.adbc.DATASETS", datasets),
+        patch("ingest.duckdb.DATASETS", datasets),
+        patch("ingest.duckdb_copy.DATASETS", datasets),
+        patch("ingest.geopandas.DATASETS", datasets),
+    ):
+        _, _, adbc_statements = build_adbc_statements("sample.fgb", spatial_index=True)
+        _, _, adbc_direct_statements = build_direct_statements("sample.fgb", spatial_index=True)
+        _, _, duckdb_statements = build_statements("sample.fgb", spatial_index=True)
+        _, _, copy_statements = build_duckdb_copy_statements(
+            "sample.fgb", spatial_index=True
+        )
+        _, _, geopandas_statements = build_geopandas_statements("sample.fgb")
+
+    assert "Pyogrio: stream FlatGeobuf" in "\n".join(adbc_statements)
+    assert "wkb_geometry" in "\n".join(adbc_statements)
+    assert "wkb_geometry geometry" in "\n".join(adbc_direct_statements)
+    assert "ST_Read(" in "\n".join(duckdb_statements)
+    assert "(geom)" in "\n".join(duckdb_statements)
+    assert "ST_Read(" in "\n".join(copy_statements)
+    assert "(geom)" in "\n".join(copy_statements)
+    assert "geopandas.read_file" in "\n".join(geopandas_statements)
 
 
 def test_matrix_parser_accepts_comma_separated_selections() -> None:

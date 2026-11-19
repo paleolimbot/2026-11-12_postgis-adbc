@@ -11,10 +11,22 @@ fetch() {
   curl --fail --location --retry 3 "$url" -o "data/$filename"
 }
 
+fetch_ns_water_fgb() {
+  # GeoArrow distributes these release assets as raw FlatGeobuf files, rather
+  # than ZIP archives.  Keep the downloaded .fgb files in data/ for ogr2ogr.
+  fetch ns-water_elevation.fgb \
+    https://github.com/geoarrow/geoarrow-data/releases/download/v0.2.0/ns-water_elevation.fgb
+  fetch ns-water_water-poly.fgb \
+    https://github.com/geoarrow/geoarrow-data/releases/download/v0.2.0/ns-water_water-poly.fgb
+}
+
 case "$dataset" in
   ns-water_elevation)
     fetch ns-water_elevation.parquet \
       https://github.com/geoarrow/geoarrow-data/releases/download/v0.2.0/ns-water_elevation.parquet
+    ;;
+  ns-water-fgb)
+    fetch_ns_water_fgb
     ;;
   all)
     fetch microsoft-buildings_point.parquet \
@@ -27,7 +39,7 @@ case "$dataset" in
       https://github.com/geoarrow/geoarrow-data/releases/download/v0.2.0/ns-water_water-poly.parquet
     ;;
   *)
-    echo "usage: $0 [ns-water_elevation|all]" >&2
+    echo "usage: $0 [ns-water_elevation|ns-water-fgb|all]" >&2
     exit 2
     ;;
 esac

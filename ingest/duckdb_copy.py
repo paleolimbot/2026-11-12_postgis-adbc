@@ -49,10 +49,12 @@ def build_statements(
 
     target_table = table or f"{definition['table'].removesuffix('_ogr2ogr')}_duckdb_copy"
     _validate_identifier(target_table)
+    source_relation = _source_relation(source, "...")
+    geometry_column = _geometry_column(source)
     statements = [
         (
             "DuckDB: COPY (SELECT *, row_number() OVER () % "
-            f"{partitions} AS _copy_bucket FROM read_parquet(...)) TO <temporary directory> "
+            f"{partitions} AS _copy_bucket FROM {source_relation}) TO <temporary directory> "
             "(FORMAT postgres_binary, PARTITION_BY (_copy_bucket), "
             "WRITE_PARTITION_COLUMNS false);"
         ),
@@ -60,7 +62,7 @@ def build_statements(
         f"psql ({partitions} concurrent clients): \\copy {target_table} FROM <each .bin file> WITH (FORMAT binary);",
     ]
     if spatial_index:
-        statements.append(f"psql: {spatial_index_statement(target_table)};")
+        statements.append(f"psql: {spatial_index_statement(target_table, geometry_column)};")
     return source, target_table, statements
 
 
@@ -100,8 +102,9 @@ def run(
         # A partitioned COPY normally writes one file per writer thread. One
         # thread makes --partitions a predictable number of output files.
         connection.execute("SET threads = 1")
+        source_relation = _source_relation(source, "?")
         column_types = connection.execute(
-            "DESCRIBE SELECT * FROM read_parquet(?)", [str(source)]
+            f"DESCRIBE SELECT * FROM {source_relation}", [str(source)]
         ).fetchall()
         create_table = _create_table_statement(target_table, column_types)
 
@@ -112,7 +115,7 @@ def run(
                 f"""
                 COPY (
                     SELECT *, row_number() OVER () % {partitions} AS _copy_bucket
-                    FROM read_parquet(?)
+                    FROM {source_relation}
                 ) TO ? (
                     FORMAT postgres_binary,
                     PARTITION_BY (_copy_bucket),
@@ -136,7 +139,11 @@ def run(
                 for future in futures:
                     future.result()
             if spatial_index:
-                _run_psql(settings, psql_bin, spatial_index_statement(target_table))
+                _run_psql(
+                    settings,
+                    psql_bin,
+                    spatial_index_statement(target_table, _geometry_column(source)),
+                )
     except (duckdb.Error, OSError, subprocess.CalledProcessError) as error:
         raise IngestionError(f"DuckDB COPY ingestion failed: {error}") from error
     finally:
@@ -156,7 +163,7 @@ def _create_table_statement(table: str, columns: list[tuple[object, ...]]) -> st
 def _postgres_type(name: str, duckdb_type: str) -> str:
     """Map the flat DuckDB types supported by PostgreSQL binary COPY."""
 
-    if name == "geometry" and duckdb_type.startswith("GEOMETRY"):
+    if duckdb_type.startswith("GEOMETRY"):
         return "geometry"
     if duckdb_type == "VARCHAR":
         return "text"
@@ -216,3 +223,15 @@ def _run_psql(settings: PostgresSettings, psql_bin: str, command: str) -> None:
 
 def _quote_identifier(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
+
+
+def _source_relation(source: Path, path_argument: str) -> str:
+    """Return the DuckDB relation for a supported source."""
+
+    if source.suffix.lower() == ".fgb":
+        return f"ST_Read({path_argument})"
+    return f"read_parquet({path_argument})"
+
+
+def _geometry_column(source: Path) -> str:
+    return "geom" if source.suffix.lower() == ".fgb" else "geometry"

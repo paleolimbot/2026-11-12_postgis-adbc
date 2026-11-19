@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 import time
@@ -43,17 +44,18 @@ def build_statements(
     # Keep this route independent so all methods can coexist.
     target_table = table or f"{definition['table'].removesuffix('_ogr2ogr')}_adbc"
     _validate_identifier(target_table)
+    geometry_column = _geometry_column(source)
 
     statements = [
-        f"PyArrow: stream GeoParquet batches from {source};",
+        *_read_steps(source),
         f"ADBC: cursor.adbc_ingest('{target_table}', reader, mode='replace');",
         (
-            f"ALTER TABLE {target_table} ALTER COLUMN geometry "
-            "TYPE geometry USING ST_GeomFromWKB(geometry);"
+            f"ALTER TABLE {target_table} ALTER COLUMN {geometry_column} "
+            f"TYPE geometry USING ST_GeomFromWKB({geometry_column});"
         ),
     ]
     if spatial_index:
-        statements.append(f"{spatial_index_statement(target_table)};")
+        statements.append(f"{spatial_index_statement(target_table, geometry_column)};")
     return source, target_table, statements
 
 
@@ -67,8 +69,9 @@ def run(
     """Bulk-create a bytea table with ADBC, then restore its geometry type.
 
     ADBC maps Arrow's binary type to PostgreSQL ``bytea`` during bulk ingest.
-    GeoParquet stores the geometry as WKB, so PostGIS can convert that temporary
-    binary column in place with ``ST_GeomFromWKB`` after the bulk load.
+    GeoParquet and Pyogrio's FlatGeobuf Arrow stream represent geometry as WKB,
+    so PostGIS can convert that temporary binary column in place with
+    ``ST_GeomFromWKB`` after the bulk load.
     """
 
     source, target_table, statements = build_statements(dataset, table, spatial_index)
@@ -78,7 +81,6 @@ def run(
     try:
         import adbc_driver_postgresql.dbapi
         import pyarrow as pa
-        import pyarrow.parquet as pq
     except ModuleNotFoundError as error:
         raise IngestionError(
             "Could not import ADBC PostgreSQL or PyArrow. Install the project's runtime dependencies first."
@@ -88,20 +90,17 @@ def run(
     connection = None
     try:
         connection = adbc_driver_postgresql.dbapi.connect(uri)
-        parquet_file = pq.ParquetFile(source)
-        reader = pa.RecordBatchReader.from_batches(
-            parquet_file.schema_arrow,
-            parquet_file.iter_batches(),
-        )
-        with connection.cursor() as cursor:
+        geometry_column = _geometry_column(source)
+        with _open_reader(source, pa) as reader, connection.cursor() as cursor:
             started_at = time.perf_counter()
             cursor.adbc_ingest(target_table, reader, mode="replace")
             cursor.execute(
                 f"ALTER TABLE {target_table} "
-                "ALTER COLUMN geometry TYPE geometry USING ST_GeomFromWKB(geometry)"
+                f"ALTER COLUMN {geometry_column} TYPE geometry "
+                f"USING ST_GeomFromWKB({geometry_column})"
             )
             if spatial_index:
-                cursor.execute(spatial_index_statement(target_table))
+                cursor.execute(spatial_index_statement(target_table, geometry_column))
         connection.commit()
     except Exception as error:
         if connection is not None:
@@ -127,14 +126,15 @@ def build_direct_statements(
     source, target_table, _ = build_statements(dataset, table)
     if table is None:
         target_table = f"{target_table}_direct"
+    geometry_column = _geometry_column(source)
     statements = [
-        f"PyArrow: stream GeoParquet batches from {source};",
+        *_read_steps(source),
         f"DROP TABLE IF EXISTS {target_table};",
-        f"CREATE TABLE {target_table} (... inferred Arrow columns ..., geometry geometry);",
+        f"CREATE TABLE {target_table} (... inferred Arrow columns ..., {geometry_column} geometry);",
         f"ADBC: cursor.adbc_ingest('{target_table}', reader, mode='append');",
     ]
     if spatial_index:
-        statements.append(f"{spatial_index_statement(target_table)};")
+        statements.append(f"{spatial_index_statement(target_table, geometry_column)};")
     return source, target_table, statements
 
 
@@ -145,7 +145,7 @@ def run_direct(
     spatial_index: bool = False,
     dry_run: bool = False,
 ) -> IngestionResult:
-    """Pre-create a PostGIS geometry column, then append GeoParquet WKB via ADBC.
+    """Pre-create a PostGIS geometry column, then append WKB via ADBC.
 
     This relies on the PostgreSQL driver's binary COPY path accepting WKB as
     PostGIS geometry input. Unlike :func:`run`, it avoids rewriting the table
@@ -159,7 +159,6 @@ def run_direct(
     try:
         import adbc_driver_postgresql.dbapi
         import pyarrow as pa
-        import pyarrow.parquet as pq
     except ModuleNotFoundError as error:
         raise IngestionError(
             "Could not import ADBC PostgreSQL or PyArrow. Install the project's runtime dependencies first."
@@ -169,19 +168,17 @@ def run_direct(
     connection = None
     try:
         connection = adbc_driver_postgresql.dbapi.connect(uri)
-        parquet_file = pq.ParquetFile(source)
-        create_table = _create_table_statement(target_table, parquet_file.schema_arrow, pa)
-        reader = pa.RecordBatchReader.from_batches(
-            parquet_file.schema_arrow,
-            parquet_file.iter_batches(),
-        )
-        with connection.cursor() as cursor:
+        geometry_column = _geometry_column(source)
+        with _open_reader(source, pa) as reader, connection.cursor() as cursor:
+            create_table = _create_table_statement(
+                target_table, reader.schema, pa, geometry_column
+            )
             cursor.execute(f"DROP TABLE IF EXISTS {target_table}")
             cursor.execute(create_table)
             started_at = time.perf_counter()
             cursor.adbc_ingest(target_table, reader, mode="append")
             if spatial_index:
-                cursor.execute(spatial_index_statement(target_table))
+                cursor.execute(spatial_index_statement(target_table, geometry_column))
         connection.commit()
     except Exception as error:
         if connection is not None:
@@ -216,13 +213,50 @@ def _redact_error(message: str, password: str) -> str:
     return message.replace(password, "<redacted>").replace(quote(password, safe=""), "<redacted>")
 
 
-def _create_table_statement(table: str, schema: object, pa: object) -> str:
-    """Create DDL from an Arrow schema, preserving GeoParquet WKB as geometry."""
+@contextmanager
+def _open_reader(source: Path, pa: object):
+    """Yield a streaming Arrow reader for GeoParquet or FlatGeobuf."""
+
+    if source.suffix.lower() == ".fgb":
+        try:
+            import pyogrio.raw
+        except ModuleNotFoundError as error:
+            raise IngestionError(
+                "Could not import Pyogrio. Install the project's runtime dependencies first."
+            ) from error
+
+        with pyogrio.raw.open_arrow(source, use_pyarrow=True) as (_, reader):
+            yield reader
+        return
+
+    import pyarrow.parquet as pq
+
+    parquet_file = pq.ParquetFile(source)
+    yield pa.RecordBatchReader.from_batches(
+        parquet_file.schema_arrow,
+        parquet_file.iter_batches(),
+    )
+
+
+def _read_steps(source: Path) -> list[str]:
+    if source.suffix.lower() == ".fgb":
+        return [f"Pyogrio: stream FlatGeobuf Arrow batches from {source};"]
+    return [f"PyArrow: stream GeoParquet batches from {source};"]
+
+
+def _geometry_column(source: Path) -> str:
+    return "wkb_geometry" if source.suffix.lower() == ".fgb" else "geometry"
+
+
+def _create_table_statement(
+    table: str, schema: object, pa: object, geometry_column: str = "geometry"
+) -> str:
+    """Create DDL from an Arrow schema, preserving its WKB column as geometry."""
 
     columns = []
     for field in schema:
         name = _quote_identifier(field.name)
-        if field.name == "geometry":
+        if field.name == geometry_column:
             columns.append(f"{name} geometry")
         else:
             columns.append(f"{name} {_postgres_type(field.type, pa)}")

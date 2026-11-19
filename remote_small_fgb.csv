@@ -1,0 +1,71 @@
+name,iteration,dataset,method,status,elapsed_seconds,error
+remote,1,ns-water_elevation.fgb,ogr2ogr,ok,18.697387416032143,
+remote,1,ns-water_elevation.fgb,duckdb,ok,10.069310417049564,
+remote,1,ns-water_elevation.fgb,duckdb-copy,ok,20.2845879169181,
+remote,1,ns-water_elevation.fgb,geopandas,ok,115.60078608302865,
+remote,1,ns-water_elevation.fgb,adbc-alter,ok,21.38315487501677,
+remote,1,ns-water_elevation.fgb,adbc-direct,ok,11.184382874984294,
+remote,1,ns-water_water-poly.fgb,ogr2ogr,ok,12.01267904206179,
+remote,1,ns-water_water-poly.fgb,duckdb,error,,"DuckDB ingestion failed: Failed to copy data: ERROR:  Geometry has Z dimension but column does not
+CONTEXT:  COPY ns_water_water_poly_fgb_duckdb, line 1, column geom
+"
+remote,1,ns-water_water-poly.fgb,duckdb-copy,ok,6.787374750012532,
+remote,1,ns-water_water-poly.fgb,geopandas,ok,35.30171545792837,
+remote,1,ns-water_water-poly.fgb,adbc-alter,ok,19.272548457956873,
+remote,1,ns-water_water-poly.fgb,adbc-direct,ok,12.34662091708742,
+remote,2,ns-water_elevation.fgb,ogr2ogr,ok,30.835075874929316,
+remote,2,ns-water_elevation.fgb,duckdb,ok,14.326842917012982,
+remote,2,ns-water_elevation.fgb,duckdb-copy,ok,27.459132999996655,
+remote,2,ns-water_elevation.fgb,geopandas,ok,158.85805966693442,
+remote,2,ns-water_elevation.fgb,adbc-alter,ok,48.88563258305658,
+remote,2,ns-water_elevation.fgb,adbc-direct,ok,22.22445037495345,
+remote,2,ns-water_water-poly.fgb,ogr2ogr,ok,21.634507999988273,
+remote,2,ns-water_water-poly.fgb,duckdb,error,,"DuckDB ingestion failed: Failed to copy data: ERROR:  Geometry has Z dimension but column does not
+CONTEXT:  COPY ns_water_water_poly_fgb_duckdb, line 1, column geom
+"
+remote,2,ns-water_water-poly.fgb,duckdb-copy,ok,9.045026333071291,
+remote,2,ns-water_water-poly.fgb,geopandas,ok,39.06910454190802,
+remote,2,ns-water_water-poly.fgb,adbc-alter,ok,26.284437499940395,
+remote,2,ns-water_water-poly.fgb,adbc-direct,ok,14.55476995895151,
+remote,3,ns-water_elevation.fgb,ogr2ogr,ok,41.178210958023556,
+remote,3,ns-water_elevation.fgb,duckdb,ok,22.960964583908208,
+remote,3,ns-water_elevation.fgb,duckdb-copy,ok,28.795820832950994,
+remote,3,ns-water_elevation.fgb,geopandas,ok,151.85764391697012,
+remote,3,ns-water_elevation.fgb,adbc-alter,ok,41.24414279102348,
+remote,3,ns-water_elevation.fgb,adbc-direct,ok,18.181496375007555,
+remote,3,ns-water_water-poly.fgb,ogr2ogr,ok,19.325578208081424,
+remote,3,ns-water_water-poly.fgb,duckdb,error,,"DuckDB ingestion failed: Failed to copy data: ERROR:  Geometry has Z dimension but column does not
+CONTEXT:  COPY ns_water_water_poly_fgb_duckdb, line 1, column geom
+"
+remote,3,ns-water_water-poly.fgb,duckdb-copy,ok,10.13062945799902,
+remote,3,ns-water_water-poly.fgb,geopandas,ok,38.2162079999689,
+remote,3,ns-water_water-poly.fgb,adbc-alter,ok,27.90353137499187,
+remote,3,ns-water_water-poly.fgb,adbc-direct,ok,14.110140500008129,
+remote,4,ns-water_elevation.fgb,ogr2ogr,ok,52.996377417002805,
+remote,4,ns-water_elevation.fgb,duckdb,ok,25.068369416054338,
+remote,4,ns-water_elevation.fgb,duckdb-copy,ok,32.603819499956444,
+remote,4,ns-water_elevation.fgb,geopandas,ok,168.27464537508786,
+remote,4,ns-water_elevation.fgb,adbc-alter,ok,48.16451783303637,
+remote,4,ns-water_elevation.fgb,adbc-direct,ok,22.76486866606865,
+remote,4,ns-water_water-poly.fgb,ogr2ogr,ok,17.914205207955092,
+remote,4,ns-water_water-poly.fgb,duckdb,error,,"DuckDB ingestion failed: Failed to copy data: ERROR:  Geometry has Z dimension but column does not
+CONTEXT:  COPY ns_water_water_poly_fgb_duckdb, line 1, column geom
+"
+remote,4,ns-water_water-poly.fgb,duckdb-copy,ok,9.238270584028214,
+remote,4,ns-water_water-poly.fgb,geopandas,ok,43.760663166991435,
+remote,4,ns-water_water-poly.fgb,adbc-alter,ok,30.211409125011414,
+remote,4,ns-water_water-poly.fgb,adbc-direct,ok,15.95726641593501,
+remote,5,ns-water_elevation.fgb,ogr2ogr,ok,49.21813533396926,
+remote,5,ns-water_elevation.fgb,duckdb,ok,32.4593990839785,
+remote,5,ns-water_elevation.fgb,duckdb-copy,ok,29.173082166002132,
+remote,5,ns-water_elevation.fgb,geopandas,ok,176.58969695901033,
+remote,5,ns-water_elevation.fgb,adbc-alter,ok,52.592871500062756,
+remote,5,ns-water_elevation.fgb,adbc-direct,ok,23.717943624942563,
+remote,5,ns-water_water-poly.fgb,ogr2ogr,ok,20.455838958034292,
+remote,5,ns-water_water-poly.fgb,duckdb,error,,"DuckDB ingestion failed: Failed to copy data: ERROR:  Geometry has Z dimension but column does not
+CONTEXT:  COPY ns_water_water_poly_fgb_duckdb, line 1, column geom
+"
+remote,5,ns-water_water-poly.fgb,duckdb-copy,ok,10.87930283404421,
+remote,5,ns-water_water-poly.fgb,geopandas,ok,42.306544416002,
+remote,5,ns-water_water-poly.fgb,adbc-alter,ok,31.121581666055135,
+remote,5,ns-water_water-poly.fgb,adbc-direct,ok,17.58950983302202,

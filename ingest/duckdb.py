@@ -44,6 +44,8 @@ def build_statements(
     _validate_identifier(target_table)
 
     source_literal = _sql_literal(str(source))
+    source_relation = _source_relation(source, source_literal)
+    geometry_column = _geometry_column(source)
     statements = [
         "INSTALL postgres;",
         "LOAD postgres;",
@@ -52,10 +54,12 @@ def build_statements(
         "CREATE SECRET postgis_ingest (TYPE postgres, HOST ?, PORT ?, DATABASE ?, USER ?, PASSWORD '<redacted>');",
         "ATTACH '' AS postgis (TYPE postgres, SECRET postgis_ingest);",
         f"DROP TABLE IF EXISTS postgis.{target_table};",
-        f"CREATE TABLE postgis.{target_table} AS SELECT * FROM read_parquet({source_literal});",
+        f"CREATE TABLE postgis.{target_table} AS SELECT * FROM {source_relation};",
     ]
     if spatial_index:
-        statements.append(f"CALL postgres_execute('postgis', '{spatial_index_statement(target_table)}');")
+        statements.append(
+            f"CALL postgres_execute('postgis', '{spatial_index_statement(target_table, geometry_column)}');"
+        )
     return source, target_table, statements
 
 
@@ -66,7 +70,7 @@ def run(
     spatial_index: bool = False,
     dry_run: bool = False,
 ) -> IngestionResult:
-    """Load GeoParquet through DuckDB directly into an attached PostGIS database.
+    """Load GeoParquet or FlatGeobuf through DuckDB into PostGIS.
 
     The spatial extension recognizes the GeoParquet geometry metadata; the
     PostgreSQL extension then creates the destination table in Postgres. A
@@ -107,13 +111,13 @@ def run(
 
         started_at = time.perf_counter()
         connection.execute(
-            f"CREATE TABLE postgis.{target_table} AS SELECT * FROM read_parquet(?)",
+            f"CREATE TABLE postgis.{target_table} AS SELECT * FROM {_source_relation(source, '?')}",
             [str(source)],
         )
         if spatial_index:
             connection.execute(
                 "CALL postgres_execute('postgis', ?)",
-                [spatial_index_statement(target_table)],
+                [spatial_index_statement(target_table, _geometry_column(source))],
             )
     except duckdb.Error as error:
         raise IngestionError(f"DuckDB ingestion failed: {error}") from error
@@ -127,3 +131,15 @@ def _sql_literal(value: str) -> str:
     """Return a SQL string literal for a dry-run statement."""
 
     return "'" + value.replace("'", "''") + "'"
+
+
+def _source_relation(source: Path, path_argument: str) -> str:
+    """Return the DuckDB relation for a supported source."""
+
+    if source.suffix.lower() == ".fgb":
+        return f"ST_Read({path_argument})"
+    return f"read_parquet({path_argument})"
+
+
+def _geometry_column(source: Path) -> str:
+    return "geom" if source.suffix.lower() == ".fgb" else "geometry"
