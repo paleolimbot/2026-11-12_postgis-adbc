@@ -5,6 +5,7 @@ from unittest.mock import patch
 from ingest.__main__ import _format_elapsed
 from ingest.adbc import build_direct_statements, build_statements as build_adbc_statements
 from ingest.config import PostgresSettings, load_postgres_settings
+from ingest.duckdb_copy import build_statements as build_duckdb_copy_statements
 from ingest.duckdb import build_statements
 from ingest.ogr2ogr import build_command, discover_datasets
 
@@ -106,6 +107,21 @@ def test_adbc_direct_statements_precreate_geometry_then_append_wkb(tmp_path: Pat
     assert "geometry geometry" in output
     assert "adbc_ingest('sample_adbc_direct', reader, mode='append')" in output
     assert "ALTER TABLE" not in output
+
+
+def test_duckdb_copy_statements_partition_and_load_with_psql(tmp_path: Path) -> None:
+    source = tmp_path / "source.parquet"
+    source.touch()
+    datasets = {"sample": {"source": source, "layer": "source", "table": "sample_ogr2ogr"}}
+    with patch("ingest.duckdb_copy.DATASETS", datasets):
+        _, target_table, statements = build_duckdb_copy_statements("sample", partitions=4)
+
+    output = "\n".join(statements)
+    assert target_table == "sample_duckdb_copy"
+    assert "row_number() OVER () % 4" in output
+    assert "FORMAT postgres_binary" in output
+    assert "4 concurrent clients" in output
+    assert "\\copy sample_duckdb_copy" in output
 
 
 def test_elapsed_time_is_human_readable() -> None:

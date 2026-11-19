@@ -84,6 +84,26 @@ the password-free DuckDB SQL without opening a database connection:
 uv run postgis-ingest duckdb --dry-run
 ```
 
+### DuckDB COPY files + psql
+
+`duckdb-copy` uses DuckDB's PostgreSQL binary COPY writer to split rows into a
+configurable number of local temporary files. It then uses concurrent `psql`
+client-side `\copy` commands to load them. The intermediate files are removed
+after a successful or failed run. Use `--partitions` to select both the number
+of write buckets and the maximum number of parallel `psql` clients:
+
+```sh
+uv run postgis-ingest duckdb-copy --partitions 4
+```
+
+The default is one partition. The route currently supports flat Parquet schemas
+with a `geometry` column; it creates `ns_water_elevation_duckdb_copy` by default.
+Preview the workflow without connecting:
+
+```sh
+uv run postgis-ingest duckdb-copy --partitions 4 --dry-run
+```
+
 ### ADBC PostgreSQL
 
 Both ADBC routes stream the GeoParquet file as Arrow record batches through the

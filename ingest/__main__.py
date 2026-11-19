@@ -9,6 +9,7 @@ from pathlib import Path
 from .adbc import run as run_adbc_alter
 from .adbc import run_direct as run_adbc_direct
 from .config import ConfigurationError, load_postgres_settings
+from .duckdb_copy import run as run_duckdb_copy
 from .duckdb import run as run_duckdb
 from .ogr2ogr import DATASETS, IngestionError
 from .ogr2ogr import run as run_ogr2ogr
@@ -30,6 +31,17 @@ def build_parser() -> argparse.ArgumentParser:
     duckdb.add_argument("--table", help="destination table (default is method-specific)")
     duckdb.add_argument("--env-file", type=Path, default=Path(".env"), help="dotenv file (default: .env)")
     duckdb.add_argument("--dry-run", action="store_true", help="print the SQL without connecting to Postgres")
+
+    duckdb_copy = subcommands.add_parser(
+        "duckdb-copy",
+        help="write DuckDB PostgreSQL binary COPY files, then load them with psql",
+    )
+    duckdb_copy.add_argument("--dataset", choices=DATASETS, default="ns-water_elevation")
+    duckdb_copy.add_argument("--table", help="destination table (default is method-specific)")
+    duckdb_copy.add_argument("--env-file", type=Path, default=Path(".env"), help="dotenv file (default: .env)")
+    duckdb_copy.add_argument("--partitions", type=int, default=1, help="number of DuckDB COPY files and concurrent psql loaders (default: 1)")
+    duckdb_copy.add_argument("--psql-bin", default="psql", help="psql executable (default: psql)")
+    duckdb_copy.add_argument("--dry-run", action="store_true", help="print the ingestion steps without connecting to Postgres")
 
     adbc_alter = subcommands.add_parser(
         "adbc-alter",
@@ -63,6 +75,15 @@ def main(argv: list[str] | None = None) -> int:
                 settings=settings,
                 dataset=args.dataset,
                 table=args.table,
+                dry_run=args.dry_run,
+            )
+        elif args.method == "duckdb-copy":
+            result = run_duckdb_copy(
+                settings=settings,
+                dataset=args.dataset,
+                table=args.table,
+                partitions=args.partitions,
+                psql_bin=args.psql_bin,
                 dry_run=args.dry_run,
             )
         elif args.method in {"adbc", "adbc-alter"}:
