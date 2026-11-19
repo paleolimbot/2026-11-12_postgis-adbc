@@ -3,6 +3,7 @@
 *_files/
 *.html
 .env
+.conda/
 *.egg-info/
 data/*.parquet
 data/*.fgb

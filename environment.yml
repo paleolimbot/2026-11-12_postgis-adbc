@@ -1,0 +1,7 @@
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - libgdal-core
+  - libgdal-arrow-parquet
+  - libgdal-pg
