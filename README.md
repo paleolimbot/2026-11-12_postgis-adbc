@@ -77,6 +77,19 @@ The database password is supplied to GDAL through `PGPASSWORD` and is never
 included in the printed command. Use `--table another_name` to choose a
 different target table, or `--env-file path/to/.env` for a different connection.
 
+By default, every ingestion command drops its destination table after a
+successful load (`--drop-table`). Matrix runs do this after each cell, including
+each repetition. Cleanup happens after the ingestion timer stops, so reported
+times exclude the drop. Use `--no-drop-table` to keep the loaded tables:
+
+```sh
+uv run postgis-ingest ogr2ogr --no-drop-table
+uv run postgis-ingest matrix --datasets all --methods all --no-drop-table
+```
+
+Dry runs never drop tables. Failed ingests leave any partial table available for
+inspection; cleanup failures are reported as errors.
+
 All loaders default to ingest-only timing and do not create a spatial index.
 Pass `--spatial-index` to include a GiST index in that method's timing; in the
 matrix harness it applies to every selected cell. `ogr2ogr` and GeoPandas use

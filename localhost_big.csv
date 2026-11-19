@@ -7,14 +7,10 @@ local,1,microsoft-buildings_point,adbc-direct,ok,148.859811357921,
 local,2,microsoft-buildings_point,ogr2ogr,error,,ogr2ogr failed with exit status 1.
 local,2,microsoft-buildings_point,duckdb,ok,168.67856744700111,
 local,2,microsoft-buildings_point,duckdb-copy,ok,174.7533648860408,
-local,2,microsoft-buildings_point,adbc-alter,error,,"ADBC ingestion failed: IO: [libpq] Failed to execute query 'ALTER TABLE microsoft_buildings_point_adbc ALTER COLUMN geometry TYPE geometry USING ST_GeomFromWKB(geometry)': ERROR:  could not extend file ""base/5/3330376.4"" with FileFallocate(): No space left on device
-HINT:  Check free disk space.
-. SQLSTATE: 53100"
+local,2,microsoft-buildings_point,adbc-alter,error,,"ADBC ingestion failed: IO: [libpq] Failed to execute query 'ALTER TABLE microsoft_buildings_point_adbc ALTER COLUMN geometry TYPE geometry USING ST_GeomFromWKB(geometry)': ERROR:  could not extend file ""base/5/3330376.4"" with FileFallocate(): No space left on device"
 local,2,microsoft-buildings_point,adbc-direct,ok,180.26470099994913,
 local,3,microsoft-buildings_point,ogr2ogr,error,,ogr2ogr failed with exit status 1.
 local,3,microsoft-buildings_point,duckdb,ok,183.88875900499988,
 local,3,microsoft-buildings_point,duckdb-copy,ok,176.03788527694996,
-local,3,microsoft-buildings_point,adbc-alter,error,,"ADBC ingestion failed: IO: [libpq] Failed to execute query 'ALTER TABLE microsoft_buildings_point_adbc ALTER COLUMN geometry TYPE geometry USING ST_GeomFromWKB(geometry)': ERROR:  could not extend file ""base/5/3330401.4"" with FileFallocate(): No space left on device
-HINT:  Check free disk space.
-. SQLSTATE: 53100"
+local,3,microsoft-buildings_point,adbc-alter,error,,"ADBC ingestion failed: IO: [libpq] Failed to execute query 'ALTER TABLE microsoft_buildings_point_adbc ALTER COLUMN geometry TYPE geometry USING ST_GeomFromWKB(geometry)': ERROR:  could not extend file ""base/5/3330401.4"" with FileFallocate(): No space left on device"
 local,3,microsoft-buildings_point,adbc-direct,ok,182.7633811220294,

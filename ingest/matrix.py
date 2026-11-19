@@ -15,6 +15,7 @@ from .duckdb_copy import run as run_duckdb_copy
 from .geopandas import run as run_geopandas
 from .ogr2ogr import DATASETS, IngestionError
 from .ogr2ogr import run as run_ogr2ogr
+from .postgis import drop_ingested_table
 
 METHODS = (
     "ogr2ogr",
@@ -61,6 +62,7 @@ def run(
     partitions: int,
     spatial_index: bool,
     repetitions: int = 1,
+    drop_table: bool = True,
     progress: Callable[[int, str, str], None] | None = None,
 ) -> list[MatrixResult]:
     """Run every selected dataset/method pair, retaining individual failures."""
@@ -94,7 +96,13 @@ def run(
                 except IngestionError as error:
                     results.append(MatrixResult(dataset, method, None, str(error), iteration))
                 else:
-                    results.append(MatrixResult(dataset, method, result.elapsed_seconds, None, iteration))
+                    cleanup_error = None
+                    if drop_table and not dry_run:
+                        try:
+                            drop_ingested_table(settings, result.target_table)
+                        except IngestionError as error:
+                            cleanup_error = str(error)
+                    results.append(MatrixResult(dataset, method, result.elapsed_seconds, cleanup_error, iteration))
     return results
 
 
