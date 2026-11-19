@@ -1,0 +1,11 @@
+name,iteration,dataset,method,status,elapsed_seconds,error
+local,1,ns-water_elevation.fgb,ogr2ogr,ok,18.950770332943648,
+local,1,ns-water_water-poly.fgb,ogr2ogr,ok,10.687563205021434,
+local,2,ns-water_elevation.fgb,ogr2ogr,ok,18.421161443926394,
+local,2,ns-water_water-poly.fgb,ogr2ogr,ok,10.940663557033986,
+local,3,ns-water_elevation.fgb,ogr2ogr,ok,18.3577774039004,
+local,3,ns-water_water-poly.fgb,ogr2ogr,ok,10.922053328016773,
+local,4,ns-water_elevation.fgb,ogr2ogr,ok,18.70964786899276,
+local,4,ns-water_water-poly.fgb,ogr2ogr,ok,10.855647025047801,
+local,5,ns-water_elevation.fgb,ogr2ogr,ok,18.58914947498124,
+local,5,ns-water_water-poly.fgb,ogr2ogr,ok,10.676053979899734,
