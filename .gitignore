@@ -3,5 +3,7 @@
 *_files/
 *.html
 .env
+*.egg-info/
 data/*.parquet
 data/*.fgb
+*.pyc

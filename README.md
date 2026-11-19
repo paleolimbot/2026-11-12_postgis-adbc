@@ -5,9 +5,8 @@ Among many sins committed whilst benchmarking PostGIS is neglecting the time req
 ## PostGIS
 
 The Compose service uses PostgreSQL 18 / PostGIS 3.6, matching `../sedona-db`.
-The [BAO Systems image](https://github.com/baosystems/docker-postgis) rebuilds
-upstream for both AMD64 and ARM64, so Docker selects the native image on Intel
-and Apple Silicon Macs. This is a third-party rebuild with no support provided.
+It uses the upstream AMD64 image; Docker Desktop runs it under emulation on
+Apple Silicon.
 
 Copy the environment file and set your password in `.env` (ignored by Git):
 
@@ -32,6 +31,38 @@ or `127.0.0.1` for localhost only. Port, user, and database overrides are shown 
 Data persists in a named volume across `docker compose down` / `up`. Credentials
 and database settings initialize an empty volume only; editing `.env` does not
 change an existing database password. `docker compose down -v` deletes the data.
+
+## Ingestion methods
+
+Each ingestion implementation lives in the dependency-free Python `ingest`
+package and uses the Postgres connection values in `.env`. The first baseline
+loads only `ns-water_elevation` with GDAL's `ogr2ogr`; it uses the PostgreSQL
+driver's `COPY` path and replaces the method-specific table
+`ns_water_elevation_ogr2ogr` on every run. This leaves room for later methods to
+load the same source into their own comparison tables.
+
+Download just this source (only required once), start PostGIS as above, then run:
+
+```sh
+./data/fetch.sh ns-water_elevation
+uv run postgis-ingest ogr2ogr
+```
+
+Preview the exact `ogr2ogr` command without connecting to the database:
+
+```sh
+uv run postgis-ingest ogr2ogr --dry-run
+```
+
+The database password is supplied to GDAL through `PGPASSWORD` and is never
+included in the printed command. Use `--table another_name` to choose a
+different target table, or `--env-file path/to/.env` for a different connection.
+
+Run the tests with:
+
+```sh
+uv run pytest
+```
 
 ## Slides
 

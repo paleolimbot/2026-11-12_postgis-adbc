@@ -1,0 +1,23 @@
+[project]
+name = "postgis-ingest-benchmarks"
+version = "0.1.0"
+description = "Reproducible PostGIS ingestion implementations"
+requires-python = ">=3.11"
+
+[project.scripts]
+postgis-ingest = "ingest.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["ingest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
