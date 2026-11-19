@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .config import PostgresSettings
 from .ogr2ogr import DATASETS, IngestionError, _validate_identifier
+from .postgis import spatial_index_statement
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,7 @@ class IngestionResult:
 def build_statements(
     dataset: str,
     table: str | None = None,
+    spatial_index: bool = False,
 ) -> tuple[Path, str, list[str]]:
     """Build a password-free description of a DuckDB load for one dataset."""
 
@@ -52,6 +54,8 @@ def build_statements(
         f"DROP TABLE IF EXISTS postgis.{target_table};",
         f"CREATE TABLE postgis.{target_table} AS SELECT * FROM read_parquet({source_literal});",
     ]
+    if spatial_index:
+        statements.append(f"CALL postgres_execute('postgis', '{spatial_index_statement(target_table)}');")
     return source, target_table, statements
 
 
@@ -59,6 +63,7 @@ def run(
     settings: PostgresSettings,
     dataset: str,
     table: str | None = None,
+    spatial_index: bool = False,
     dry_run: bool = False,
 ) -> IngestionResult:
     """Load GeoParquet through DuckDB directly into an attached PostGIS database.
@@ -69,7 +74,7 @@ def run(
     ``--dry-run`` and connection-string error messages.
     """
 
-    source, target_table, statements = build_statements(dataset, table)
+    source, target_table, statements = build_statements(dataset, table, spatial_index)
     if dry_run:
         return IngestionResult(statements=statements, elapsed_seconds=None)
 
@@ -105,6 +110,11 @@ def run(
             f"CREATE TABLE postgis.{target_table} AS SELECT * FROM read_parquet(?)",
             [str(source)],
         )
+        if spatial_index:
+            connection.execute(
+                "CALL postgres_execute('postgis', ?)",
+                [spatial_index_statement(target_table)],
+            )
     except duckdb.Error as error:
         raise IngestionError(f"DuckDB ingestion failed: {error}") from error
     finally:

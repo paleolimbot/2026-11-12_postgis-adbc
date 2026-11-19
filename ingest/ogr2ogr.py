@@ -65,6 +65,7 @@ def build_command(
     dataset: str,
     table: str | None = None,
     ogr2ogr_bin: str = "ogr2ogr",
+    spatial_index: bool = False,
 ) -> list[str]:
     """Build the deterministic ogr2ogr invocation for one named dataset."""
 
@@ -97,6 +98,8 @@ def build_command(
         target_table,
         "-lco",
         "GEOMETRY_NAME=geom",
+        "-lco",
+        f"SPATIAL_INDEX={'GIST' if spatial_index else 'NONE'}",
         f"PG:{settings.ogr_connection_string()}",
         str(source),
         definition["layer"],
@@ -108,6 +111,7 @@ def run(
     dataset: str,
     table: str | None = None,
     ogr2ogr_bin: str = "ogr2ogr",
+    spatial_index: bool = False,
     dry_run: bool = False,
 ) -> IngestionResult:
     """Run ogr2ogr and return its command and elapsed wall-clock time.
@@ -117,7 +121,7 @@ def run(
     only this method's destination table.
     """
 
-    command = build_command(settings, dataset, table, ogr2ogr_bin)
+    command = build_command(settings, dataset, table, ogr2ogr_bin, spatial_index)
     if dry_run:
         return IngestionResult(command=command, elapsed_seconds=None)
     if shutil.which(ogr2ogr_bin) is None:

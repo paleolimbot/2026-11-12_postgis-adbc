@@ -13,6 +13,7 @@ import time
 
 from .config import PostgresSettings
 from .ogr2ogr import DATASETS, IngestionError, _validate_identifier
+from .postgis import spatial_index_statement
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,7 @@ def build_statements(
     dataset: str,
     table: str | None = None,
     partitions: int = 1,
+    spatial_index: bool = False,
 ) -> tuple[Path, str, list[str]]:
     """Build a password-free description of one hybrid COPY load."""
 
@@ -57,6 +59,8 @@ def build_statements(
         f"psql: DROP TABLE IF EXISTS {target_table}; CREATE TABLE {target_table} (...);",
         f"psql ({partitions} concurrent clients): \\copy {target_table} FROM <each .bin file> WITH (FORMAT binary);",
     ]
+    if spatial_index:
+        statements.append(f"psql: {spatial_index_statement(target_table)};")
     return source, target_table, statements
 
 
@@ -66,6 +70,7 @@ def run(
     table: str | None = None,
     partitions: int = 1,
     psql_bin: str = "psql",
+    spatial_index: bool = False,
     dry_run: bool = False,
 ) -> IngestionResult:
     """Write partitioned PostgreSQL binary COPY files with DuckDB and load them.
@@ -75,7 +80,7 @@ def run(
     access to the temporary directory on the client machine.
     """
 
-    source, target_table, statements = build_statements(dataset, table, partitions)
+    source, target_table, statements = build_statements(dataset, table, partitions, spatial_index)
     if dry_run:
         return IngestionResult(statements=statements, elapsed_seconds=None)
     if shutil.which(psql_bin) is None:
@@ -130,6 +135,8 @@ def run(
                 ]
                 for future in futures:
                     future.result()
+            if spatial_index:
+                _run_psql(settings, psql_bin, spatial_index_statement(target_table))
     except (duckdb.Error, OSError, subprocess.CalledProcessError) as error:
         raise IngestionError(f"DuckDB COPY ingestion failed: {error}") from error
     finally:

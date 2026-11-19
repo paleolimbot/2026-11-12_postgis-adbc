@@ -65,6 +65,12 @@ The database password is supplied to GDAL through `PGPASSWORD` and is never
 included in the printed command. Use `--table another_name` to choose a
 different target table, or `--env-file path/to/.env` for a different connection.
 
+All loaders default to ingest-only timing and do not create a spatial index.
+Pass `--spatial-index` to include a GiST index in that method's timing; in the
+matrix harness it applies to every selected cell. `ogr2ogr` and GeoPandas use
+their built-in index creation paths, while the other methods run a PostGIS
+`CREATE INDEX ... USING GIST` after loading.
+
 ### DuckDB
 
 The `duckdb` option reads the GeoParquet source with DuckDB's `spatial`
@@ -121,6 +127,29 @@ Preview the workflow without connecting:
 
 ```sh
 uv run postgis-ingest geopandas --dry-run
+```
+
+### Matrix harness
+
+Run selected dataset × method combinations sequentially with comma-separated
+fixture and method lists. Each method uses its own default destination table;
+the harness prints a status and elapsed-time table, continues after a failed
+cell, and exits nonzero when any cell fails.
+
+```sh
+uv run postgis-ingest matrix \
+  --datasets ns-water_elevation,ns-water_water-poly \
+  --methods ogr2ogr,duckdb,adbc-direct
+```
+
+Available methods are `ogr2ogr`, `duckdb`, `duckdb-copy`, `geopandas`,
+`adbc-alter`, and `adbc-direct`. Pass `--partitions N` to control the
+`duckdb-copy` cells, or use `--dry-run` to validate a matrix without loading.
+Use `all` as either selector to expand to every discovered fixture or every
+available method:
+
+```sh
+uv run postgis-ingest matrix --datasets all --methods all --dry-run
 ```
 
 ### ADBC PostgreSQL

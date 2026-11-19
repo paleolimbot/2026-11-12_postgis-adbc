@@ -22,6 +22,7 @@ class IngestionResult:
 def build_statements(
     dataset: str,
     table: str | None = None,
+    spatial_index: bool = False,
 ) -> tuple[Path, str, list[str]]:
     """Build a password-free description of a GeoPandas load."""
 
@@ -44,7 +45,8 @@ def build_statements(
         "GeoPandas: GeoSeries.from_wkb(table['geometry']);",
         (
             "GeoPandas: GeoDataFrame.to_postgis("
-            f"'{target_table}', engine, if_exists='replace', index=False);"
+            f"'{target_table}', engine, if_exists='replace', index=False, "
+            f"spatial_index={spatial_index});"
         ),
     ]
     return source, target_table, statements
@@ -54,11 +56,12 @@ def run(
     settings: PostgresSettings,
     dataset: str,
     table: str | None = None,
+    spatial_index: bool = False,
     dry_run: bool = False,
 ) -> IngestionResult:
     """Read WKB Parquet into a GeoDataFrame and replace its PostGIS table."""
 
-    source, target_table, statements = build_statements(dataset, table)
+    source, target_table, statements = build_statements(dataset, table, spatial_index)
     if dry_run:
         return IngestionResult(statements=statements, elapsed_seconds=None)
 
@@ -84,7 +87,7 @@ def run(
             engine,
             if_exists="replace",
             index=False,
-            dtype={"geometry": geoalchemy2.Geometry(spatial_index=False)},
+            dtype={"geometry": geoalchemy2.Geometry(spatial_index=spatial_index)},
         )
     except Exception as error:
         raise IngestionError(

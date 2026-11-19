@@ -2,14 +2,19 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from ingest.__main__ import _format_elapsed
+import pytest
+
+from ingest.__main__ import _format_elapsed, build_parser
 from ingest.adbc import build_direct_statements
 from ingest.adbc import build_statements as build_adbc_statements
 from ingest.config import PostgresSettings, load_postgres_settings
 from ingest.duckdb import build_statements
 from ingest.duckdb_copy import build_statements as build_duckdb_copy_statements
 from ingest.geopandas import build_statements as build_geopandas_statements
-from ingest.ogr2ogr import build_command, discover_datasets
+from ingest.matrix import METHODS, format_results, split_selection
+from ingest.matrix import run as run_matrix
+from ingest.ogr2ogr import IngestionError, build_command, discover_datasets
+from ingest.postgis import spatial_index_statement
 
 
 def test_environment_overrides_dotenv(tmp_path: Path, monkeypatch) -> None:
@@ -54,7 +59,22 @@ def test_ogr_command_uses_copy_and_method_table(tmp_path: Path) -> None:
 
     assert "PG_USE_COPY" in command
     assert "sample_ogr2ogr" in command
+    assert "SPATIAL_INDEX=NONE" in command
     assert "secret" not in " ".join(command)
+
+
+def test_ogr_command_can_request_its_builtin_spatial_index(tmp_path: Path) -> None:
+    source = tmp_path / "source.parquet"
+    source.touch()
+    datasets = {"sample": {"source": source, "layer": "source", "table": "sample_ogr2ogr"}}
+    with patch("ingest.ogr2ogr.DATASETS", datasets):
+        command = build_command(
+            PostgresSettings("localhost", "5432", "postgres", "postgres", "secret"),
+            "sample",
+            spatial_index=True,
+        )
+
+    assert "SPATIAL_INDEX=GIST" in command
 
 
 def test_duckdb_statements_use_postgres_and_spatial_extensions(tmp_path: Path) -> None:
@@ -139,6 +159,55 @@ def test_geopandas_statements_read_wkb_then_replace_table(tmp_path: Path) -> Non
     assert "GeoSeries.from_wkb" in output
     assert "to_postgis('sample_geopandas'" in output
     assert "if_exists='replace'" in output
+
+
+def test_matrix_parser_accepts_comma_separated_selections() -> None:
+    args = build_parser().parse_args(
+        [
+            "matrix",
+            "--datasets",
+            "ns-water_elevation,ns-water_water-poly",
+            "--methods",
+            "ogr2ogr,duckdb",
+        ]
+    )
+
+    assert args.datasets == "ns-water_elevation,ns-water_water-poly"
+    assert args.methods == "ogr2ogr,duckdb"
+
+
+def test_matrix_all_shortcut_expands_and_cannot_be_mixed() -> None:
+    assert split_selection("all", "methods", METHODS) == METHODS
+
+    with pytest.raises(IngestionError, match="cannot be combined"):
+        split_selection("all,duckdb", "methods", METHODS)
+
+
+def test_matrix_dry_run_reports_every_pair() -> None:
+    settings = PostgresSettings("localhost", "5432", "postgres", "postgres", "secret")
+
+    results = run_matrix(
+        settings,
+        ("ns-water_elevation",),
+        ("ogr2ogr", "duckdb"),
+        dry_run=True,
+        ogr2ogr_bin="ogr2ogr",
+        psql_bin="psql",
+        partitions=1,
+        spatial_index=False,
+    )
+
+    assert len(results) == 2
+    assert all(result.error is None for result in results)
+    assert "dry run" in format_results(results, dry_run=True)
+
+
+def test_spatial_index_statement_shortens_long_index_names() -> None:
+    statement = spatial_index_statement("table_" * 20)
+
+    index_name = statement.split()[2]
+    assert len(index_name) <= 63
+    assert statement.endswith("USING GIST (geometry)")
 
 
 def test_elapsed_time_is_human_readable() -> None:

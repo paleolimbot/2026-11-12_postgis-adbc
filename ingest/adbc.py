@@ -9,6 +9,7 @@ from urllib.parse import quote
 
 from .config import PostgresSettings
 from .ogr2ogr import DATASETS, IngestionError, _validate_identifier
+from .postgis import spatial_index_statement
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,7 @@ class IngestionResult:
 def build_statements(
     dataset: str,
     table: str | None = None,
+    spatial_index: bool = False,
 ) -> tuple[Path, str, list[str]]:
     """Build a password-free description of an ADBC load for one dataset."""
 
@@ -50,6 +52,8 @@ def build_statements(
             "TYPE geometry USING ST_GeomFromWKB(geometry);"
         ),
     ]
+    if spatial_index:
+        statements.append(f"{spatial_index_statement(target_table)};")
     return source, target_table, statements
 
 
@@ -57,6 +61,7 @@ def run(
     settings: PostgresSettings,
     dataset: str,
     table: str | None = None,
+    spatial_index: bool = False,
     dry_run: bool = False,
 ) -> IngestionResult:
     """Bulk-create a bytea table with ADBC, then restore its geometry type.
@@ -66,7 +71,7 @@ def run(
     binary column in place with ``ST_GeomFromWKB`` after the bulk load.
     """
 
-    source, target_table, statements = build_statements(dataset, table)
+    source, target_table, statements = build_statements(dataset, table, spatial_index)
     if dry_run:
         return IngestionResult(statements=statements, elapsed_seconds=None)
 
@@ -95,6 +100,8 @@ def run(
                 f"ALTER TABLE {target_table} "
                 "ALTER COLUMN geometry TYPE geometry USING ST_GeomFromWKB(geometry)"
             )
+            if spatial_index:
+                cursor.execute(spatial_index_statement(target_table))
         connection.commit()
     except Exception as error:
         if connection is not None:
@@ -113,6 +120,7 @@ def run(
 def build_direct_statements(
     dataset: str,
     table: str | None = None,
+    spatial_index: bool = False,
 ) -> tuple[Path, str, list[str]]:
     """Build a password-free description of direct ADBC geometry ingestion."""
 
@@ -125,6 +133,8 @@ def build_direct_statements(
         f"CREATE TABLE {target_table} (... inferred Arrow columns ..., geometry geometry);",
         f"ADBC: cursor.adbc_ingest('{target_table}', reader, mode='append');",
     ]
+    if spatial_index:
+        statements.append(f"{spatial_index_statement(target_table)};")
     return source, target_table, statements
 
 
@@ -132,6 +142,7 @@ def run_direct(
     settings: PostgresSettings,
     dataset: str,
     table: str | None = None,
+    spatial_index: bool = False,
     dry_run: bool = False,
 ) -> IngestionResult:
     """Pre-create a PostGIS geometry column, then append GeoParquet WKB via ADBC.
@@ -141,7 +152,7 @@ def run_direct(
     with ``ALTER TABLE ... USING ST_GeomFromWKB`` after ingestion.
     """
 
-    source, target_table, statements = build_direct_statements(dataset, table)
+    source, target_table, statements = build_direct_statements(dataset, table, spatial_index)
     if dry_run:
         return IngestionResult(statements=statements, elapsed_seconds=None)
 
@@ -169,6 +180,8 @@ def run_direct(
             cursor.execute(create_table)
             started_at = time.perf_counter()
             cursor.adbc_ingest(target_table, reader, mode="append")
+            if spatial_index:
+                cursor.execute(spatial_index_statement(target_table))
         connection.commit()
     except Exception as error:
         if connection is not None:
