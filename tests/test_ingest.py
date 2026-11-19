@@ -6,7 +6,7 @@ from ingest.__main__ import _format_elapsed
 from ingest.adbc import build_direct_statements, build_statements as build_adbc_statements
 from ingest.config import PostgresSettings, load_postgres_settings
 from ingest.duckdb import build_statements
-from ingest.ogr2ogr import build_command
+from ingest.ogr2ogr import build_command, discover_datasets
 
 
 def test_environment_overrides_dotenv(tmp_path: Path, monkeypatch) -> None:
@@ -24,6 +24,19 @@ def test_environment_overrides_dotenv(tmp_path: Path, monkeypatch) -> None:
 
     assert settings.user == "shell-user"
     assert settings.host == "127.0.0.1"
+
+
+def test_dataset_discovery_uses_parquet_stems_and_safe_table_names(tmp_path: Path) -> None:
+    (tmp_path / "water-poly.parquet").touch()
+    (tmp_path / "2026 buildings.parquet").touch()
+    (tmp_path / "notes.txt").touch()
+
+    datasets = discover_datasets(tmp_path)
+
+    assert set(datasets) == {"water-poly", "2026 buildings"}
+    assert datasets["water-poly"]["layer"] == "water-poly"
+    assert datasets["water-poly"]["table"] == "water_poly_ogr2ogr"
+    assert datasets["2026 buildings"]["table"] == "data_2026_buildings_ogr2ogr"
 
 
 def test_ogr_command_uses_copy_and_method_table(tmp_path: Path) -> None:

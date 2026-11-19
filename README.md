@@ -35,17 +35,24 @@ change an existing database password. `docker compose down -v` deletes the data.
 ## Ingestion methods
 
 Each ingestion implementation lives in the Python `ingest` package and uses the
-Postgres connection values in `.env`. The first baseline loads only
-`ns-water_elevation` with GDAL's `ogr2ogr`; it uses the PostgreSQL driver's
-`COPY` path and replaces the method-specific table
-`ns_water_elevation_ogr2ogr` on every run. This leaves room for later methods to
-load the same source into their own comparison tables.
+Postgres connection values in `.env`. Every `*.parquet` fixture in `data/` is
+available through its filename stem: for example,
+`data/ns-water_water-poly.parquet` is selected with
+`--dataset ns-water_water-poly`. Each method uses its own destination table, so
+the same source can be loaded for comparison.
 
 Download just this source (only required once), start PostGIS as above, then run:
 
 ```sh
 ./data/fetch.sh ns-water_elevation
 uv run postgis-ingest ogr2ogr
+```
+
+Choose another fixture with `--dataset`; run `postgis-ingest <method> --help`
+to see the currently discovered names:
+
+```sh
+uv run postgis-ingest adbc-direct --dataset ns-water_water-poly
 ```
 
 Preview the exact `ogr2ogr` command without connecting to the database:

@@ -13,15 +13,39 @@ from pathlib import Path
 from .config import PostgresSettings
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIRECTORY = PROJECT_ROOT / "data"
 
 
-DATASETS = {
-    "ns-water_elevation": {
-        "source": PROJECT_ROOT / "data/ns-water_elevation.parquet",
-        "layer": "ns-water_elevation",
-        "table": "ns_water_elevation_ogr2ogr",
-    },
-}
+def discover_datasets(data_directory: Path = DATA_DIRECTORY) -> dict[str, dict[str, Path | str]]:
+    """Return every Parquet fixture in ``data_directory``, keyed by file stem.
+
+    A fresh CLI process discovers files added to ``data/`` automatically, so a
+    fixture named ``example-data.parquet`` is selected with
+    ``--dataset example-data``.
+    """
+
+    datasets = {}
+    for source in sorted(data_directory.iterdir() if data_directory.is_dir() else (), key=lambda path: path.name):
+        if not source.is_file() or source.suffix.lower() != ".parquet":
+            continue
+        datasets[source.stem] = {
+            "source": source,
+            "layer": source.stem,
+            "table": f"{_table_stem(source.stem)}_ogr2ogr",
+        }
+    return datasets
+
+
+def _table_stem(stem: str) -> str:
+    """Convert a fixture stem into a safe, readable Postgres table prefix."""
+
+    table_stem = re.sub(r"[^A-Za-z0-9_]", "_", stem)
+    if not table_stem or not re.match(r"[A-Za-z_]", table_stem):
+        table_stem = f"data_{table_stem}"
+    return table_stem
+
+
+DATASETS = discover_datasets()
 
 
 class IngestionError(RuntimeError):
