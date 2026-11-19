@@ -1,0 +1,61 @@
+name,iteration,dataset,method,status,elapsed_seconds,error
+local,1,ns-water_elevation,ogr2ogr,error,,ogr2ogr failed with exit status 1.
+local,1,ns-water_elevation,duckdb,ok,5.921709491987713,
+local,1,ns-water_elevation,duckdb-copy,error,,Could not find 'psql'. Install PostgreSQL client tools first.
+local,1,ns-water_elevation,geopandas,ok,112.34412465395872,
+local,1,ns-water_elevation,adbc-alter,ok,13.201906095026061,
+local,1,ns-water_elevation,adbc-direct,ok,6.1795434560626745,
+local,1,ns-water_water-poly,ogr2ogr,error,,ogr2ogr failed with exit status 1.
+local,1,ns-water_water-poly,duckdb,ok,7.63883926696144,
+local,1,ns-water_water-poly,duckdb-copy,error,,Could not find 'psql'. Install PostgreSQL client tools first.
+local,1,ns-water_water-poly,geopandas,ok,36.61929003999103,
+local,1,ns-water_water-poly,adbc-alter,ok,15.511296959011815,
+local,1,ns-water_water-poly,adbc-direct,ok,7.854654188966379,
+local,2,ns-water_elevation,ogr2ogr,error,,ogr2ogr failed with exit status 1.
+local,2,ns-water_elevation,duckdb,ok,9.18389213399496,
+local,2,ns-water_elevation,duckdb-copy,error,,Could not find 'psql'. Install PostgreSQL client tools first.
+local,2,ns-water_elevation,geopandas,ok,151.70972746808548,
+local,2,ns-water_elevation,adbc-alter,ok,31.588729533948936,
+local,2,ns-water_elevation,adbc-direct,ok,11.736688473960385,
+local,2,ns-water_water-poly,ogr2ogr,error,,ogr2ogr failed with exit status 1.
+local,2,ns-water_water-poly,duckdb,ok,9.702720702975057,
+local,2,ns-water_water-poly,duckdb-copy,error,,Could not find 'psql'. Install PostgreSQL client tools first.
+local,2,ns-water_water-poly,geopandas,ok,39.748169246013276,
+local,2,ns-water_water-poly,adbc-alter,ok,24.924317827099003,
+local,2,ns-water_water-poly,adbc-direct,ok,9.554605887969956,
+local,3,ns-water_elevation,ogr2ogr,error,,ogr2ogr failed with exit status 1.
+local,3,ns-water_elevation,duckdb,ok,14.284101597033441,
+local,3,ns-water_elevation,duckdb-copy,error,,Could not find 'psql'. Install PostgreSQL client tools first.
+local,3,ns-water_elevation,geopandas,ok,144.12082670500968,
+local,3,ns-water_elevation,adbc-alter,ok,46.863077825983055,
+local,3,ns-water_elevation,adbc-direct,ok,15.368294238927774,
+local,3,ns-water_water-poly,ogr2ogr,error,,ogr2ogr failed with exit status 1.
+local,3,ns-water_water-poly,duckdb,ok,12.250160236028023,
+local,3,ns-water_water-poly,duckdb-copy,error,,Could not find 'psql'. Install PostgreSQL client tools first.
+local,3,ns-water_water-poly,geopandas,ok,37.83967079105787,
+local,3,ns-water_water-poly,adbc-alter,ok,25.608257654937916,
+local,3,ns-water_water-poly,adbc-direct,ok,11.870803758967668,
+local,4,ns-water_elevation,ogr2ogr,error,,ogr2ogr failed with exit status 1.
+local,4,ns-water_elevation,duckdb,ok,12.209343530004844,
+local,4,ns-water_elevation,duckdb-copy,error,,Could not find 'psql'. Install PostgreSQL client tools first.
+local,4,ns-water_elevation,geopandas,ok,135.1234693999868,
+local,4,ns-water_elevation,adbc-alter,ok,44.552073003025725,
+local,4,ns-water_elevation,adbc-direct,ok,17.87041000800673,
+local,4,ns-water_water-poly,ogr2ogr,error,,ogr2ogr failed with exit status 1.
+local,4,ns-water_water-poly,duckdb,ok,14.668369953054935,
+local,4,ns-water_water-poly,duckdb-copy,error,,Could not find 'psql'. Install PostgreSQL client tools first.
+local,4,ns-water_water-poly,geopandas,ok,39.45276094600558,
+local,4,ns-water_water-poly,adbc-alter,ok,25.405709902057424,
+local,4,ns-water_water-poly,adbc-direct,ok,11.580816368106753,
+local,5,ns-water_elevation,ogr2ogr,error,,ogr2ogr failed with exit status 1.
+local,5,ns-water_elevation,duckdb,ok,16.189446005038917,
+local,5,ns-water_elevation,duckdb-copy,error,,Could not find 'psql'. Install PostgreSQL client tools first.
+local,5,ns-water_elevation,geopandas,ok,147.62581942800898,
+local,5,ns-water_elevation,adbc-alter,ok,47.633294870960526,
+local,5,ns-water_elevation,adbc-direct,ok,21.04357076191809,
+local,5,ns-water_water-poly,ogr2ogr,error,,ogr2ogr failed with exit status 1.
+local,5,ns-water_water-poly,duckdb,ok,13.016366994008422,
+local,5,ns-water_water-poly,duckdb-copy,error,,Could not find 'psql'. Install PostgreSQL client tools first.
+local,5,ns-water_water-poly,geopandas,ok,44.34267897706013,
+local,5,ns-water_water-poly,adbc-alter,ok,26.080478521995246,
+local,5,ns-water_water-poly,adbc-direct,ok,15.290797655005008,
