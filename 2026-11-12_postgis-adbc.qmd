@@ -126,7 +126,9 @@ Tricky: Requires an ALTER TABLE without a workaround
 
 ## The moment you've all been waiting for... {background-image="bg/wb3.png"}
 
-## The results  {background-image="bg/wb3.png"}
+## The results  {background-image="bg/wb4.png"}
+
+ns-water elevation (11 million points), ns-water water_poly (700k polygons)
 
 ```{r}
 #| echo: false
@@ -153,7 +155,33 @@ results |>
   theme(legend.position = "bottom")
 ```
 
+## The results  {background-image="bg/wb4.png"}
+
+ns-water elevation (11 million points), ns-water water_poly (700k polygons)
+
+```{r}
+#| echo: false
+
+results |>
+  filter(dataset != "microsoft-buildings_point", method != "geopandas") |>
+  ggplot(aes(x = elapsed_seconds, y = method, colour = name)) +
+  geom_jitter(height = 0.15, width = 0, alpha = 0.8, size = 2) +
+  facet_wrap(~dataset, ncol = 2) +
+  scale_x_continuous(limits = c(0, NA)) +
+  labs(x = "Time (seconds)", y = NULL, colour = NULL) +
+  theme_minimal(base_size = 18) +
+  theme(legend.position = "bottom")
+```
+
 ## The results  {background-image="bg/wb3.png"}
+
+- GeoPandas bottleneck is per-row cost (slower for points vs. polygons, even if the total geometry size is similar)
+- On localhost, ogr2ogr bottleneck is how fast it can read the source (FlatGeoBuf is not quite fast enough to saturate the loopback). On gigabit+ connectivity this matters less.
+- After we support COPY for geometry natively, ADBC and DuckDB are the fastest and most consistent ways to get geometry into PostGIS.
+
+## The results  {background-image="bg/wb3.png"}
+
+microsoft-buildings_point (130 million points)
 
 ```{r}
 #| echo: false
@@ -168,6 +196,31 @@ results |>
   theme_minimal(base_size = 18) +
   theme(legend.position = "bottom")
 ```
+
+## The results  {background-image="bg/wb3.png"}
+
+microsoft-buildings_point (130 million points)
+
+```{r}
+#| echo: false
+
+results |>
+  filter(dataset == "microsoft-buildings_point", method != "geopandas") |>
+  ggplot(aes(x = elapsed_seconds, y = method, colour = name)) +
+  geom_jitter(height = 0.15, width = 0, alpha = 0.8, size = 2) +
+  facet_wrap(~dataset, ncol = 2) +
+  scale_x_continuous(limits = c(0, NA)) +
+  labs(x = "Time (seconds)", y = NULL, colour = NULL) +
+  theme_minimal(base_size = 18) +
+  theme(legend.position = "bottom")
+```
+
+## The results  {background-image="bg/wb3.png"}
+
+- GeoPandas requires materializing the input, which here requires ~50GB memory
+- ogr2ogr is suprisingly slow here (surprising because it uses a similar approach to ADBC and DuckDB)
+- Multiple connections may be helpful in maximizing throughoput at this scale (duckdb-copy is doing this explicitly)
+- After we support COPY for geometry natively, ADBC and DuckDB are the fastest and most consistent ways to get geometry into PostGIS.
 
 ## Two basic approaches: INSERT  {background-image="bg/wb3.png"}
 
