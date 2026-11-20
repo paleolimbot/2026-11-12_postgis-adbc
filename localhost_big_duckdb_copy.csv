@@ -1,0 +1,6 @@
+name,iteration,dataset,method,status,elapsed_seconds,error
+local,1,microsoft-buildings_point,duckdb-copy,ok,42.08238475408871,
+local,2,microsoft-buildings_point,duckdb-copy,ok,42.4039430799894,
+local,3,microsoft-buildings_point,duckdb-copy,ok,41.64795480296016,
+local,4,microsoft-buildings_point,duckdb-copy,ok,42.27036867698189,
+local,5,microsoft-buildings_point,duckdb-copy,ok,41.348376409034245,
